@@ -6,6 +6,8 @@ export default () => ({
     jwt: {
         secret: process.env.JWT_SECRET,
         expiresIn: process.env.JWT_EXPIRATION_TIME || '1h',
+        refreshSecret: process.env.JWT_REFRESH_SECRET, // For refresh token
+        refreshExpiresIn: process.env.JWT_REFRESH_EXPIRATION_TIME || '7d',
     },
     firebase: {
         // Resolve the path to the service account key file
