@@ -1,5 +1,7 @@
 import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import * as bcrypt from 'bcryptjs';
 import { UsersService } from '../users/users.service';
 import { FirebaseService } from '../firebase/firebase.service';
 import { LoginDto } from './dtos/login.dto';
@@ -12,7 +14,8 @@ export class AuthService {
     private jwtService: JwtService,
     private usersService: UsersService,
     private firebaseService: FirebaseService,
-  ) {}
+    private configService: ConfigService,
+  ) { }
 
   /**
    * Handles user login by verifying Firebase ID token and issuing a custom JWT.
@@ -20,7 +23,7 @@ export class AuthService {
    * @param idToken The Firebase ID token received from the client.
    * @returns An object containing the custom JWT access token.
    */
-  async login(loginDto: LoginDto): Promise<{ accessToken: string }> {
+  async login(loginDto: LoginDto): Promise<{ accessToken: string, refreshToken: string }> {
     const { idToken } = loginDto;
 
     if (!idToken) {
@@ -48,7 +51,7 @@ export class AuthService {
       } else {
         // Optionally, update user details if they changed in Firebase
         if (user.email !== email) {
-          await this.usersService.updateUser(user.id, { email: email });
+          await this.usersService.updateUserById(user.id, { email: email });
         }
         console.log(`Existing user logged in: ${user.email} with UID: ${user.uid}`);
       }
@@ -62,9 +65,26 @@ export class AuthService {
         sub: user.id, // Subject of the token, typically the primary key in your database
       };
 
-      return {
-        accessToken: this.jwtService.sign(payload),
-      };
+      const accessToken = this.jwtService.sign(payload);
+
+      const refreshToken = this.jwtService.sign(payload, {
+        secret: this.configService.get<string>('jwt.refreshSecret'),
+        expiresIn: this.configService.get<string>('jwt.refreshExpiresIn'),
+      });
+
+      const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
+      const refreshTokenExpiresAt = new Date(Date.now() + parseInt(this.configService.get('jwt.refreshExpiresIn')?.replace('d', '')) * 24 * 60 * 60 * 1000); // Convert '7d' to milliseconds
+      const issuedAt = new Date();
+
+      // Store the new refresh token hash in the array
+      await this.usersService.addRefreshToken(user.id, {
+        tokenHash: hashedRefreshToken,
+        expiresAt: refreshTokenExpiresAt,
+        issuedAt: issuedAt,
+        // deviceId: deviceId // Include deviceId if sent from client
+      });
+
+      return { accessToken, refreshToken };
     } catch (error) {
       console.error('Login failed:', error.message);
       // Re-throw specific exceptions or a generic UnauthorizedException
@@ -82,14 +102,14 @@ export class AuthService {
    * @param roles The array of roles to assign.
    * @returns The updated user object.
    */
-  async assignRoles(firebaseUid: string, roles: Role[]): Promise<Partial<User>> {
+  async assignRoles(firebaseUid: string, roles: Role[]): Promise<User | null> {
     const user = await this.usersService.findByFirebaseUid(firebaseUid);
     if (!user) {
       throw new BadRequestException(`User with Firebase UID ${firebaseUid} not found.`);
     }
 
     // Update roles in your local database
-    const updatedUser = await this.usersService.updateUser(user.id, { roles });
+    const updatedUser = await this.usersService.updateUserById(user.id, { roles });
 
     // Optional: Also set custom claims in Firebase for consistency
     // This makes roles available directly in Firebase ID tokens for client-side checks
