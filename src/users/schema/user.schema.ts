@@ -13,7 +13,13 @@ export class User extends Document {
     @Prop() phoneNumber: string;
     @Prop() password: string;
 
-    @Prop({ default: [] }) refreshTokens: string[]; // Can store multiple tokens per device
+    @Prop({ default: [] })
+    refreshTokens: {
+        tokenHash: string; // The hashed refresh token itself
+        expiresAt: Date;   // When this specific refresh token expires
+        deviceId?: string; // Optional: Unique ID for the device/session (e.g., generated client-side UUID, or user-agent derived hash)
+        issuedAt: Date;    // When this specific refresh token was issued
+    }[]; // Can store multiple tokens per device
 }
 
 export const UserSchema = SchemaFactory.createForClass(User)
