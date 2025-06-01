@@ -4,34 +4,21 @@ import { User, UserDocument } from './schema/user.schema';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { RefreshTokenEntry } from './dtos/refresh-token.dto';
+import { FirebaseService } from 'src/firebase/firebase.service';
+import { CreateUserDto } from './dtos/create-user.dto';
 
 @Injectable()
 export class UsersService {
-    constructor(@InjectModel(User.name) private userModel: Model<UserDocument>) { }
-    // In a real application, this would be your database interaction layer
-    // For simplicity, we're using an in-memory array.
-    private users: Partial<User>[] = [
-        // Seed an admin user for testing
-        {
-            uid: 'firebase-admin-uid-example', // Replace with an actual Firebase UID if you have one for testing
-            email: 'admin@example.com',
-            roles: [Role.Admin, Role.User],
-        },
-        {
-            uid: 'firebase-editor-uid-example',
-            email: 'editor@example.com',
-            roles: [Role.Editor, Role.User],
-        },
-    ];
-    private nextId = 1000; // Simple ID generator for new users
+    constructor(@InjectModel(User.name) private userModel: Model<UserDocument>,
+        private firebaseService: FirebaseService,) { }
 
     /**
      * Finds a user by their Firebase UID.
      * @param firebaseUid The Firebase UID of the user.
      * @returns The user object or undefined if not found.
      */
-    async findByFirebaseUid(firebaseUid: string): Promise<Partial<User> | undefined> {
-        return this.users.find(user => user.uid === firebaseUid);
+    async findByFirebaseUid(firebaseUid: string): Promise<User | null> {
+        return this.userModel.findOne({ uid: firebaseUid }).exec();
     }
 
     /**
@@ -48,13 +35,8 @@ export class UsersService {
      * @param userData The partial user data to create.
      * @returns The newly created user object.
      */
-    async createUser(userData: Partial<User>): Promise<Partial<User>> {
-        const newUser: Partial<User> = {
-            uid: userData.uid,
-            email: userData.email,
-            roles: userData.roles || [Role.User], // Default to 'user' role if not provided
-        };
-        return this.userModel.create(newUser)
+    async createUser(userData: CreateUserDto): Promise<User> {
+        return this.userModel.create(userData)
     }
 
     /**
@@ -150,5 +132,17 @@ export class UsersService {
             return undefined;
         }
         return user.refreshTokens.find(rt => rt.tokenHash === tokenHash);
+    }
+
+    // When a user signs up or requests to become a seller:
+    async assignSellerRole(userId: string): Promise<User | null> {
+        const user = await this.findById(userId);
+        if (!user) throw new NotFoundException('User not found');
+        if (!user.roles.includes(Role.Owner)) {
+            user.roles.push(Role.Owner);
+            // Firebase Custom Claims here for their Firebase ID token
+            await this.firebaseService.setCustomUserClaims(user.uid, { roles: user.roles });
+        }
+        return this.updateUserById(userId, { roles: user.roles });
     }
 }
