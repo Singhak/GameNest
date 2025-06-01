@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, UseGuards, Request, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Body, Get, UseGuards, Request, HttpCode, HttpStatus, NotFoundException } from '@nestjs/common';
 import { AuthService }  from './auth.service';
 import { LoginDto } from './dtos/login.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -47,6 +47,7 @@ export class AuthController {
   async assignRoles(@Body() assignRolesDto: AssignRolesDto) {
     const { firebaseUid, roles } = assignRolesDto;
     const updatedUser = await this.authService.assignRoles(firebaseUid, roles);
+    if(!updatedUser) throw new NotFoundException('User does not exost')
     return {
       message: `Roles updated for user ${firebaseUid}`,
       user: {

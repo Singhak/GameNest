@@ -34,7 +34,7 @@ export class AuthService {
       // 1. Verify the Firebase ID token using Firebase Admin SDK
       const decodedToken = await this.firebaseService.verifyIdToken(idToken);
       const firebaseUid = decodedToken.uid;
-      const email = decodedToken.email; // Email is often present in the token
+      const email = decodedToken.email || ''; // Email is often present in the token
 
       // 2. Check/create user in our local database
       // This is where you would interact with your actual database (e.g., MongoDB, PostgreSQL)
@@ -45,7 +45,7 @@ export class AuthService {
         user = await this.usersService.createUser({
           uid: firebaseUid,
           email: email,
-          roles: [Role.User], // Assign a default 'user' role
+          roles: [Role.User]
         });
         console.log(`New user created in local DB: ${user.email} with UID: ${user.uid}`);
       } else {
