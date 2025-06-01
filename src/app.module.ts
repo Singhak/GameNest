@@ -7,6 +7,15 @@ import { ConfigModule } from '@nestjs/config';
 import { FirebaseModule } from './firebase/firebase.module';
 import configuration from './common/configs/configuration';
 import { MongooseModule } from '@nestjs/mongoose';
+import { SportClubModule } from './sport-club/sport-club.module';
+import { SportServiceModule } from './sport-service/sport-service.module';
+import { BookingModule } from './booking/booking.module';
+import { NotificationController } from './notification/notification.controller';
+import { NotificationService } from './notification/notification.service';
+import { NotificationModule } from './notification/notification.module';
+import { ReviewService } from './review/review.service';
+import { ReviewController } from './review/review.controller';
+import { ReviewModule } from './review/review.module';
 
 @Module({
   imports: [
@@ -20,9 +29,14 @@ import { MongooseModule } from '@nestjs/mongoose';
     }),
     AuthModule,
     UsersModule,
-    FirebaseModule, // Import the Firebase module
+    FirebaseModule,
+    SportClubModule,
+    SportServiceModule,
+    BookingModule,
+    NotificationModule,
+    ReviewModule, // Import the Firebase module
   ],
-  controllers: [AppController],
-  providers: [AppService],
+  controllers: [AppController, NotificationController, ReviewController],
+  providers: [AppService, NotificationService, ReviewService],
 })
 export class AppModule { }
