@@ -34,9 +34,9 @@ import { ReviewModule } from './review/review.module';
     SportServiceModule,
     BookingModule,
     NotificationModule,
-    ReviewModule, // Import the Firebase module
+    ReviewModule,
   ],
-  controllers: [AppController, NotificationController, ReviewController],
-  providers: [AppService, NotificationService, ReviewService],
+  controllers: [AppController],
+  providers: [AppService],
 })
 export class AppModule { }
