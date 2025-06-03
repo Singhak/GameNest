@@ -14,7 +14,7 @@ export class User extends Document {
     @Prop() password: string;
     @Prop({ type: [{ type: Types.ObjectId, ref: 'SportClub' }] })
     ownedClubs: [Types.ObjectId];
-    @Prop()
+    @Prop({type:Object})
     address: {
         street: { type: String },
         city: { type: String, required: true }, // Index for city searches
@@ -28,6 +28,8 @@ export class User extends Document {
         deviceId?: string; // Optional: Unique ID for the device/session (e.g., generated client-side UUID, or user-agent derived hash)
         issuedAt: Date;    // When this specific refresh token was issued
     }[]; // Can store multiple tokens per device
+    @Prop({ default: [] })
+    fcmTokens: string[]; // Firebase Cloud Messaging tokens for push notifications
 }
 
 export const UserSchema = SchemaFactory.createForClass(User)
