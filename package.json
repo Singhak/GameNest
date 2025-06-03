@@ -33,6 +33,7 @@
     "dotenv": "^16.5.0",
     "firebase-admin": "^13.4.0",
     "jsonwebtoken": "^9.0.2",
+    "moment-timezone": "^0.6.0",
     "mongoose": "^8.15.0",
     "passport": "^0.7.0",
     "passport-custom": "^1.1.1",
