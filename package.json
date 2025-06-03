@@ -1,8 +1,8 @@
 {
-  "name": "GameNest",
+  "name": "gamenest-api",
   "version": "0.0.1",
-  "description": "",
-  "author": "",
+  "description": "Game Nest API to manage game and user data.",
+  "author": "Anil Kumar",
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
