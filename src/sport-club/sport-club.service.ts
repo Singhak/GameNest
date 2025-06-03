@@ -23,7 +23,7 @@ export class SportClubService {
     }
 
     async getClubByOwnerId(ownerId: string): Promise<SportClub[] | undefined> {
-        return await this.sportClubModel.find({ owner: ownerId })
+        return this.sportClubModel.find({ owner: ownerId })
     }
 
     async createClub(ownerId: string, createClubDto: CreateClubDto): Promise<SportClub> {
@@ -41,6 +41,6 @@ export class SportClubService {
     }
 
     async deleteOwnedClub(owerId: string, clubId: string): Promise<SportClub | null> {
-        return await this.sportClubModel.findOneAndUpdate({ owner: owerId, id: clubId }, { isDeleted: true }, { new: true })
+        return this.sportClubModel.findOneAndUpdate({ owner: owerId, id: clubId }, { isDeleted: true }, { new: true })
     }
 }

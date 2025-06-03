@@ -9,4 +9,7 @@ export class UpdateClubDto extends PartialType(CreateClubDto) {
     @IsOptional()
     @IsBoolean()
     isDeleted?: boolean;
+    @IsOptional()
+    @IsBoolean()
+    isFeatured?: Boolean;
 }

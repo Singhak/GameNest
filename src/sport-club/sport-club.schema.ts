@@ -8,37 +8,39 @@ export class SportClub extends Document {
     @Prop({ type: Types.ObjectId, ref: 'User', required: true, index: true })
     owner: Types.ObjectId; // Link to the owning user
     @Prop({ required: true, index: true })
-    name: String;
-    @Prop({ required: true })
+    name: string;
+    @Prop({ type: Object, required: true })
     address: {
-        street: { type: String, required: true },
-        city: { type: String, required: true, index: true }, // Index for city searches
-        state: { type: String, required: true },
-        zipCode: { type: String, required: true, index: true }, // Index for zip code searches
+        street: { type: string, required: true },
+        city: { type: string, required: true, index: true }, // Index for city searches
+        state: { type: string, required: true },
+        zipCode: { type: string, required: true, index: true }, // Index for zip code searches
     }
     // GeoJSON for geospatial queries (e.g., find clubs near me)
     location: {
-        type: { type: String, enum: ['Point'], default: 'Point' },
-        coordinates: { type: [Number], required: true }, // [longitude, latitude]
+        type: { type: string, enum: ['Point'], default: 'Point' },
+        coordinates: { type: [number], required: true }, // [longitude, latitude]
     };
     @Prop({ required: true })
-    description: String;
+    description: string;
     @Prop()
-    contactEmail: String;
+    contactEmail: string;
     @Prop({ required: true })
-    contactPhone: String;
+    contactPhone: string;
     @Prop()
-    images: [String]; // URLs to club photos
+    images: [string]; // URLs to club photos
     @Prop()
-    amenities: [String]; // E.g., ['Parking', 'Cafe', 'Changing Rooms']
+    amenities: [string]; // E.g., ['Parking', 'Cafe', 'Changing Rooms']
     @Prop({ default: 0 })
-    averageRating: Number;
+    averageRating: number;
     @Prop({ default: 0 })
-    reviewCount: Number
+    reviewCount: number
     @Prop({ default: true })
-    isActive: Boolean; // For enabling/disabling club listings
+    isActive: boolean; // For enabling/disabling club listings
     @Prop({ default: false })
-    isDeleted: Boolean
+    isDeleted: boolean
+    @Prop({ default: false })
+    isFeatured: boolean
 
 }
 
