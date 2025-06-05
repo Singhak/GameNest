@@ -1,6 +1,5 @@
 import { Module, Global } from '@nestjs/common';
 import { FirebaseService } from './firebase.service';
-import { ConfigService } from '@nestjs/config'; // Import ConfigService
 
 @Global() // Make FirebaseService available globally
 @Module({
