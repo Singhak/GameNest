@@ -1,6 +1,6 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
+import { ConfigService, } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import { UsersService } from '../users/users.service';
 import { FirebaseService } from '../firebase/firebase.service';
@@ -10,6 +10,7 @@ import { User } from 'src/users/schema/user.schema';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   constructor(
     private jwtService: JwtService,
     private usersService: UsersService,
@@ -24,6 +25,7 @@ export class AuthService {
    * @returns An object containing the custom JWT access token.
    */
   async login(loginDto: LoginDto): Promise<{ accessToken: string, refreshToken: string }> {
+    this.logger.log('Attempting user login...');
     const { idToken } = loginDto;
 
     if (!idToken) {
@@ -33,6 +35,7 @@ export class AuthService {
     try {
       // 1. Verify the Firebase ID token using Firebase Admin SDK
       const decodedToken = await this.firebaseService.verifyIdToken(idToken);
+      this.logger.debug(`Firebase ID token verified for UID: ${decodedToken.uid}`);
       const firebaseUid = decodedToken.uid;
       const email = decodedToken.email || ''; // Email is often present in the token
 
@@ -47,13 +50,13 @@ export class AuthService {
           email: email,
           roles: [Role.User]
         });
-        console.log(`New user created in local DB: ${user.email} with UID: ${user.uid}`);
+        this.logger.log(`New user created in local DB: ${user.email} with UID: ${user.uid}`);
       } else {
         // Optionally, update user details if they changed in Firebase
         if (user.email !== email) {
           await this.usersService.updateUserById(user.id, { email: email });
-        }
-        console.log(`Existing user logged in: ${user.email} with UID: ${user.uid}`);
+        } // Log this update?
+        this.logger.warn(`Existing user logged in: ${user.email} with UID: ${user.uid}`);
       }
 
       // 3. Generate a custom JWT containing essential user info and roles
@@ -84,11 +87,13 @@ export class AuthService {
         // deviceId: deviceId // Include deviceId if sent from client
       });
 
+      this.logger.log(`User ${user.email} logged in successfully. Issued tokens.`);
       return { accessToken, refreshToken };
     } catch (error) {
-      console.error('Login failed:', error.message);
+      this.logger.error(`Login failed: ${error.message}`, error.stack);
       // Re-throw specific exceptions or a generic UnauthorizedException
       if (error instanceof UnauthorizedException || error instanceof BadRequestException) {
+        // Log specific client errors at a lower level if needed
         throw error;
       }
       throw new UnauthorizedException('Authentication failed. Invalid token or user data.');
@@ -103,11 +108,13 @@ export class AuthService {
    * @returns The updated user object.
    */
   async assignRoles(firebaseUid: string, roles: Role[]): Promise<User | null> {
+    this.logger.log(`Attempting to assign roles ${roles.join(', ')} to user with Firebase UID: ${firebaseUid}`);
     const user = await this.usersService.findByFirebaseUid(firebaseUid);
     if (!user) {
+      this.logger.warn(`User with Firebase UID ${firebaseUid} not found for role assignment.`);
       throw new BadRequestException(`User with Firebase UID ${firebaseUid} not found.`);
     }
-
+    this.logger.debug(`User ${user.id} found. Updating roles.`);
     // Update roles in your local database
     const updatedUser = await this.usersService.updateUserById(user.id, { roles });
 
@@ -116,6 +123,7 @@ export class AuthService {
     // Note: Changes to custom claims only affect *newly issued* Firebase ID tokens.
     // Existing tokens will still have old claims until they expire or are refreshed.
     await this.firebaseService.setCustomUserClaims(firebaseUid, { roles });
+    this.logger.log(`Roles ${roles.join(', ')} assigned to user ${user.id} (Firebase UID: ${firebaseUid}).`);
 
     return updatedUser;
   }

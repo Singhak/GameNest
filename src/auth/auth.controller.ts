@@ -1,6 +1,6 @@
-import { Controller, Post, Body, Get, UseGuards, Request, HttpCode, HttpStatus, NotFoundException } from '@nestjs/common';
+import { Controller, Post, Body, Get, UseGuards, Request, HttpCode, HttpStatus, NotFoundException, Logger } from '@nestjs/common';
 import { AuthService }  from './auth.service';
-import { LoginDto } from './dtos/login.dto';
+import { LoginDto } from './dtos/login.dto'; // Corrected import path
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -9,6 +9,8 @@ import { Role } from '../common/enums/role.enum';
 
 @Controller('auth')
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
+
   constructor(private readonly authService: AuthService) {}
 
   /**
@@ -19,6 +21,7 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK) // Return 200 OK for successful login
   async login(@Body() loginDto: LoginDto): Promise<{ accessToken: string }> {
+    this.logger.log('Received login request');
     return this.authService.login(loginDto);
   }
 
@@ -29,6 +32,7 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Get('me')
   getMe(@Request() req) {
+    this.logger.debug(`Received 'me' request for user: ${req.user.uid}`);
     // req.user contains the decoded JWT payload (uid, email, roles, sub)
     return {
       message: `Hello ${req.user.email}! You are authenticated.`,
@@ -43,11 +47,15 @@ export class AuthController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.Admin)
   @Post('assign-roles')
-  @HttpCode(HttpStatus.OK)
+  @HttpCode(HttpStatus.OK) // Consider HttpStatus.NO_CONTENT (204) if no body is needed
   async assignRoles(@Body() assignRolesDto: AssignRolesDto) {
     const { firebaseUid, roles } = assignRolesDto;
+    this.logger.log(`Received request to assign roles ${roles.join(', ')} to Firebase UID: ${firebaseUid}`);
     const updatedUser = await this.authService.assignRoles(firebaseUid, roles);
-    if(!updatedUser) throw new NotFoundException('User does not exost')
+    if(!updatedUser) {
+      this.logger.warn(`User with Firebase UID ${firebaseUid} not found during role assignment.`);
+      throw new NotFoundException('User does not exist'); // Corrected typo
+    }
     return {
       message: `Roles updated for user ${firebaseUid}`,
       user: {
