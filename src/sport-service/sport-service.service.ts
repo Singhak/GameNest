@@ -30,4 +30,8 @@ export class SportServiceService {
     async updateSport(id: string, sportDto: UpdateSportServiceDto): Promise<SportService | null> {
         return this.sportServiceModel.findByIdAndUpdate(id, sportDto, { new: true });
     }
+
+    async findById(id: string) {
+        return this.sportServiceModel.findById(id).populate('club').lean().exec();
+    }
 }
