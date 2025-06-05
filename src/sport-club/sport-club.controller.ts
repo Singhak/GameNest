@@ -3,7 +3,7 @@ import { SportClubService } from './sport-club.service';
 import { CreateClubDto } from './dtos/create-club.dto';
 import { JwtPayload } from 'jsonwebtoken';
 
-@Controller('club')
+@Controller('clubs')
 export class SportClubController {
     constructor(private readonly sportClubService: SportClubService) { }
 
