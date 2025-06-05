@@ -1,10 +1,12 @@
-import { Controller, Get, Param, Query, Post, Body, Delete, Request, BadRequestException, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Param, Query, Post, Body, Delete, Request, BadRequestException, HttpCode, HttpStatus, Logger } from '@nestjs/common';
 import { SportClubService } from './sport-club.service';
 import { CreateClubDto } from './dtos/create-club.dto';
 import { JwtPayload } from 'jsonwebtoken';
 
 @Controller('clubs')
 export class SportClubController {
+    private readonly logger = new Logger(SportClubController.name);
+
     constructor(private readonly sportClubService: SportClubService) { }
 
     @Get()
@@ -14,6 +16,7 @@ export class SportClubController {
 
     @Get('search')
     async find(@Query() query: { [key: string]: any }) {
+        this.logger.debug(`Received search query for clubs: ${JSON.stringify(query)}`);
         return this.sportClubService.findClub(query);
     }
 
@@ -21,6 +24,7 @@ export class SportClubController {
     async getByOwner(@Request() req: { user: JwtPayload }) {
         const ownerId = req.user.sub;
         if (!ownerId) {
+            this.logger.warn('Attempted to get clubs by owner without owner ID in JWT.');
             throw new BadRequestException('Owner ID is required');
         }
         return this.sportClubService.getClubByOwnerId(ownerId);
@@ -28,6 +32,7 @@ export class SportClubController {
 
     @Get(':id')
     async findById(@Param('id') id: string) {
+        this.logger.debug(`Received request to find club by ID: ${id}`);
         return this.sportClubService.findClubById(id);
     }
 
@@ -35,6 +40,7 @@ export class SportClubController {
     async getOwnedClubs(@Request() req: { user: JwtPayload }) {
         const ownerId = req.user.sub;
         if (!ownerId) {
+            this.logger.warn('Attempted to get owned clubs without owner ID in JWT.');
             throw new BadRequestException('Owner ID is required');
         }
         return this.sportClubService.getClubByOwnerId(ownerId);
@@ -45,6 +51,7 @@ export class SportClubController {
     async create(@Request() req: { user: JwtPayload }, @Body() createClubDto: CreateClubDto) {
         const ownerId = req.user.sub;
         if (!ownerId) {
+            this.logger.warn('Attempted to create club without owner ID in JWT.');
             throw new BadRequestException('Owner ID is required');
         }
         return this.sportClubService.createClub(ownerId, createClubDto);
@@ -55,6 +62,7 @@ export class SportClubController {
     async deleteOwnedClub(@Request() req: { user: JwtPayload }, @Param('clubId') clubId: string) {
         const ownerId = req.user.sub;
         if (!ownerId) {
+            this.logger.warn('Attempted to delete owned club without owner ID in JWT.');
             throw new BadRequestException('Owner ID is required');
         }
         return this.sportClubService.deleteOwnedClub(ownerId, clubId);
