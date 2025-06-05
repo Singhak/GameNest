@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Role } from '../common/enums/role.enum';
-import { User, UserDocument } from './schema/user.schema';
+import { User, UserDocument, UserSchema } from './schema/user.schema';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { RefreshTokenEntry } from './dtos/refresh-token.dto';
@@ -9,7 +9,7 @@ import { CreateUserDto } from './dtos/create-user.dto';
 
 @Injectable()
 export class UsersService {
-    private readonly logger = new Logger(User.name);
+    private readonly logger = new Logger(UsersService.name);
     constructor(@InjectModel(User.name) private userModel: Model<UserDocument>,
         private firebaseService: FirebaseService,) { }
 
@@ -19,6 +19,7 @@ export class UsersService {
      * @returns The user object or undefined if not found.
      */
     async findByFirebaseUid(firebaseUid: string): Promise<User | null> {
+        this.logger.debug(`Finding user by Firebase UID: ${firebaseUid}`);
         return this.userModel.findOne({ uid: firebaseUid }).exec();
     }
 
@@ -28,6 +29,7 @@ export class UsersService {
      * @returns An array of all user objects.
      */
     async findByQuery(query: any): Promise<User[]> {
+        this.logger.debug(`Finding users by query: ${JSON.stringify(query)}`);
         return this.userModel.find(query).lean().exec();
     }
 
@@ -38,6 +40,7 @@ export class UsersService {
      * @returns The user object or undefined if not found.
      */
     async findById(id: string): Promise<User | null> {
+        this.logger.debug(`Finding user by local ID: ${id}`);
         return this.userModel.findById(id).exec();
     }
 
@@ -47,6 +50,7 @@ export class UsersService {
      * @returns The newly created user object.
      */
     async createUser(userData: CreateUserDto): Promise<User> {
+        this.logger.log(`Creating new user with UID: ${userData.uid}`);
         return this.userModel.create(userData)
     }
 
@@ -57,6 +61,7 @@ export class UsersService {
      * @returns The updated user object.
      */
     async updateUserById(id: string, updateData: Partial<User>): Promise<User | null> {
+        this.logger.debug(`Updating user by ID: ${id} with data: ${JSON.stringify(updateData)}`);
         return this.userModel.findByIdAndUpdate(id, { updateData }, { new: true }).lean().exec()
     }
 
@@ -65,6 +70,7 @@ export class UsersService {
      * @returns An array of all user objects.
      */
     async findAll(): Promise<Partial<User>[]> {
+        this.logger.debug('Finding all users');
         return this.userModel.find().lean().exec();
     }
 
@@ -75,8 +81,10 @@ export class UsersService {
    * @returns The updated user.
    */
     async addRefreshToken(userId: string, tokenEntry: RefreshTokenEntry): Promise<User | null> {
+        this.logger.debug(`Adding refresh token for user ${userId}`);
         const user = await this.userModel.findById(userId).lean().exec();
         if (!user) {
+            this.logger.warn(`User not found for adding refresh token: ${userId}`);
             throw new NotFoundException(`User with ID ${userId} not found.`);
         }
         user.refreshTokens = user.refreshTokens || []; // Ensure array exists
@@ -93,10 +101,12 @@ export class UsersService {
      * @returns The updated user.
      */
     async updateSpecificRefreshToken(userId: string, oldTokenHash: string, newTokenEntry: RefreshTokenEntry): Promise<User | null> {
+        this.logger.debug(`Updating specific refresh token for user ${userId}`);
         const user = await this.findById(userId);
         if (!user || !user.refreshTokens) {
             throw new NotFoundException(`User with ID ${userId} or their refresh tokens not found.`);
         }
+        this.logger.debug(`User found, searching for token hash: ${oldTokenHash}`);
         const tokenIndex = user.refreshTokens.findIndex(rt => rt.tokenHash === oldTokenHash);
         if (tokenIndex === -1) {
             throw new NotFoundException(`Refresh token not found for user ${userId}.`);
@@ -113,8 +123,10 @@ export class UsersService {
      * @returns The updated user.
      */
     async removeRefreshToken(userId: string, tokenHash: string): Promise<User | null> {
+        this.logger.debug(`Removing refresh token for user ${userId}`);
         const user = await this.findById(userId);
         if (!user || !user.refreshTokens) {
+            this.logger.warn(`User not found for removing refresh token: ${userId}`);
             throw new NotFoundException(`User with ID ${userId} or their refresh tokens not found.`);
         }
         user.refreshTokens = user.refreshTokens.filter(rt => rt.tokenHash !== tokenHash);
@@ -128,6 +140,7 @@ export class UsersService {
      * @returns The updated user.
      */
     async clearAllRefreshTokens(userId: string): Promise<User | null> {
+        this.logger.log(`Clearing all refresh tokens for user ${userId}`);
         return this.updateUserById(userId, { refreshTokens: [] });
     }
 
@@ -138,6 +151,7 @@ export class UsersService {
      * @returns The RefreshTokenEntry or undefined.
      */
     async findRefreshTokenEntry(userId: string, tokenHash: string): Promise<RefreshTokenEntry | undefined> {
+        this.logger.debug(`Finding refresh token entry for user ${userId} with hash ${tokenHash}`);
         const user = await this.findById(userId);
         if (!user || !user.refreshTokens) {
             return undefined;
@@ -152,9 +166,11 @@ export class UsersService {
      * @throws NotFoundException if the user is not found.
      */
 
-    async assignSellerRole(userId: string): Promise<User | null> {
+    async assignOwnerRole(userId: string): Promise<User | null> {
+        this.logger.log(`Attempting to assign Owner role to user ${userId}`);
         const user = await this.findById(userId);
         if (!user) throw new NotFoundException('User not found');
+        this.logger.debug(`User ${userId} found. Current roles: ${user.roles}`);
         if (!user.roles.includes(Role.Owner)) {
             user.roles.push(Role.Owner);
             // Firebase Custom Claims here for their Firebase ID token
@@ -172,9 +188,11 @@ export class UsersService {
      * @returns The updated user.
      */
 
-    async addFcmToken(userId: string, fcmToken: string): Promise<User | null> {
+    async addFcmToken(userId: string, fcmToken: string): Promise<User | null> { // Corrected method name
+        this.logger.debug(`Adding FCM token for user ${userId}`);
         const user = await this.findById(userId);
         if (!user) {
+            this.logger.warn(`User not found for adding FCM token: ${userId}`);
             throw new NotFoundException(`User with ID ${userId} not found.`);
         }
         user.fcmTokens = user.fcmTokens || [];
@@ -193,8 +211,10 @@ export class UsersService {
      * @returns The updated user.
      */
     async removeFcmToken(userId: string, fcmToken: string): Promise<User | null> {
+        this.logger.debug(`Removing single FCM token for user ${userId}`);
         const user = await this.findById(userId);
         if (!user || !user.fcmTokens) {
+            this.logger.warn(`User not found for removing FCM token: ${userId}`);
             throw new NotFoundException(`User with ID ${userId} or their FCM tokens not found.`);
         }
         user.fcmTokens = user.fcmTokens.filter(token => token !== fcmToken);
@@ -210,9 +230,10 @@ export class UsersService {
      */
 
     async removeFcmTokens(userId: string, tokensToRemove: string[]): Promise<User | null> {
+        this.logger.debug(`Removing multiple FCM tokens for user ${userId}: ${tokensToRemove.join(', ')}`);
         const user = await this.findById(userId);
-        this.logger.debug(`Removing FCM tokens for user ${userId}`)
-        if (!user || !user.fcmTokens) {
+        if (!user || !user.fcmTokens) { // Check if user or fcmTokens exist
+            this.logger.error(`User with ID ${userId} or their FCM tokens not found.`)
             throw new NotFoundException(`User with ID ${userId} or their FCM tokens not found.`);
         }
         user.fcmTokens = user.fcmTokens.filter(token => !tokensToRemove.includes(token));
