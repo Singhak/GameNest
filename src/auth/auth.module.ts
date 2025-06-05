@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
 import { AuthService } from './auth.service';
@@ -10,9 +10,9 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 
 @Module({
   imports: [
-    UsersModule, // Required for user management
-    FirebaseModule, // Required for Firebase Admin SDK
-    PassportModule, // For integrating Passport strategies
+    forwardRef(() => UsersModule), // Required for user management
+    // FirebaseModule, // Required for Firebase Admin SDK
+    forwardRef(() => PassportModule), // For integrating Passport strategies
     JwtModule.registerAsync({ // Register JwtModule asynchronously to use ConfigService
       inject: [ConfigService], // Inject ConfigService
       useFactory: (configService: ConfigService) => ({
@@ -25,4 +25,4 @@ import { JwtStrategy } from './strategies/jwt.strategy';
   providers: [AuthService, JwtStrategy], // Register AuthService and JwtStrategy
   exports: [AuthService], // Export AuthService if other modules need to use it
 })
-export class AuthModule {}
+export class AuthModule { }
