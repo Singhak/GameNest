@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Role } from '../common/enums/role.enum';
-import { User, UserDocument, UserSchema } from './schema/user.schema';
+import { User, UserDocument } from './schema/user.schema';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { RefreshTokenEntry } from './dtos/refresh-token.dto';
@@ -62,7 +62,7 @@ export class UsersService {
      */
     async updateUserById(id: string, updateData: Partial<User>): Promise<User | null> {
         this.logger.debug(`Updating user by ID: ${id} with data: ${JSON.stringify(updateData)}`);
-        return this.userModel.findByIdAndUpdate(id, { updateData }, { new: true }).lean().exec()
+        return this.userModel.findByIdAndUpdate(id, updateData, { new: true }).lean().exec();
     }
 
     /**
