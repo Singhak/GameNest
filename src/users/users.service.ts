@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Role } from '../common/enums/role.enum';
 import { User, UserDocument } from './schema/user.schema';
 import { InjectModel } from '@nestjs/mongoose';
@@ -9,6 +9,7 @@ import { CreateUserDto } from './dtos/create-user.dto';
 
 @Injectable()
 export class UsersService {
+    private readonly logger = new Logger(User.name);
     constructor(@InjectModel(User.name) private userModel: Model<UserDocument>,
         private firebaseService: FirebaseService,) { }
 
@@ -20,6 +21,16 @@ export class UsersService {
     async findByFirebaseUid(firebaseUid: string): Promise<User | null> {
         return this.userModel.findOne({ uid: firebaseUid }).exec();
     }
+
+    /**
+     * 
+     * @param query 
+     * @returns An array of all user objects.
+     */
+    async findByQuery(query: any): Promise<User[]> {
+        return this.userModel.find(query).lean().exec();
+    }
+
 
     /**
      * Finds a user by their local database ID.
@@ -134,7 +145,13 @@ export class UsersService {
         return user.refreshTokens.find(rt => rt.tokenHash === tokenHash);
     }
 
-    // When a user signs up or requests to become a seller:
+    /**
+     * Assigns the 'Owner' role to a user and updates their Firebase Custom Claims.
+     * @param userId The local ID of the user.
+     * @returns The updated user object.
+     * @throws NotFoundException if the user is not found.
+     */
+
     async assignSellerRole(userId: string): Promise<User | null> {
         const user = await this.findById(userId);
         if (!user) throw new NotFoundException('User not found');
@@ -144,5 +161,61 @@ export class UsersService {
             await this.firebaseService.setCustomUserClaims(user.uid, { roles: user.roles });
         }
         return this.updateUserById(userId, { roles: user.roles });
+    }
+
+    // --- FCM Token Management Methods ---
+    /**
+     * Adds a new FCM token for a user.
+     * Ensures uniqueness of tokens for a user.
+     * @param userId The local ID of the user.
+     * @param fcmToken The FCM token to add.
+     * @returns The updated user.
+     */
+
+    async addFcmToken(userId: string, fcmToken: string): Promise<User | null> {
+        const user = await this.findById(userId);
+        if (!user) {
+            throw new NotFoundException(`User with ID ${userId} not found.`);
+        }
+        user.fcmTokens = user.fcmTokens || [];
+        if (!user.fcmTokens.includes(fcmToken)) {
+            user.fcmTokens.push(fcmToken);
+            return this.updateUserById(userId, { fcmTokens: user.fcmTokens });
+        }
+        return user; // Token already exists, no update needed
+    }
+
+    /**
+     * Removes a specific FCM token for a user.
+     * Used when a device unsubscribes or a token becomes invalid.
+     * @param userId The local ID of the user.
+     * @param fcmToken The FCM token to remove.
+     * @returns The updated user.
+     */
+    async removeFcmToken(userId: string, fcmToken: string): Promise<User | null> {
+        const user = await this.findById(userId);
+        if (!user || !user.fcmTokens) {
+            throw new NotFoundException(`User with ID ${userId} or their FCM tokens not found.`);
+        }
+        user.fcmTokens = user.fcmTokens.filter(token => token !== fcmToken);
+        return this.updateUserById(userId, { fcmTokens: user.fcmTokens });
+    }
+
+    /**
+     * Removes multiple specified FCM tokens for a user.
+     * Useful for cleaning up multiple invalid tokens received from FCM feedback.
+     * @param userId The local ID of the user.
+     * @param tokensToRemove An array of FCM tokens to remove.
+     * @returns The updated user.
+     */
+
+    async removeFcmTokens(userId: string, tokensToRemove: string[]): Promise<User | null> {
+        const user = await this.findById(userId);
+        this.logger.debug(`Removing FCM tokens for user ${userId}`)
+        if (!user || !user.fcmTokens) {
+            throw new NotFoundException(`User with ID ${userId} or their FCM tokens not found.`);
+        }
+        user.fcmTokens = user.fcmTokens.filter(token => !tokensToRemove.includes(token));
+        return this.updateUserById(userId, { fcmTokens: user.fcmTokens });
     }
 }
