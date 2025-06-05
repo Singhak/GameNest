@@ -5,17 +5,15 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ConfigModule } from '@nestjs/config';
 import { FirebaseModule } from './firebase/firebase.module';
-import configuration from './common/configs/configuration';
 import { MongooseModule } from '@nestjs/mongoose';
 import { SportClubModule } from './sport-club/sport-club.module';
 import { SportServiceModule } from './sport-service/sport-service.module';
 import { BookingModule } from './booking/booking.module';
-import { NotificationController } from './notification/notification.controller';
-import { NotificationService } from './notification/notification.service';
 import { NotificationModule } from './notification/notification.module';
-import { ReviewService } from './review/review.service';
-import { ReviewController } from './review/review.controller';
 import { ReviewModule } from './review/review.module';
+import { ScheduleModule } from '@nestjs/schedule';
+import configuration from './common/configs/configuration';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 
 @Module({
   imports: [
@@ -27,6 +25,8 @@ import { ReviewModule } from './review/review.module';
       load: [configuration], // Load our custom configuration
       envFilePath: '.env', // Specify the path to your .env file
     }),
+    ScheduleModule.forRoot(),
+    EventEmitterModule.forRoot(),
     AuthModule,
     UsersModule,
     FirebaseModule,
