@@ -5,4 +5,5 @@ export enum NotificationType {
     BookingCancelled = 'booking_cancelled',
     ReviewReceived = 'review_received',
     SystemMessage = 'system_message',
+    Promotional = 'promotional',
 }
