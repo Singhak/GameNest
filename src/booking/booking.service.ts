@@ -1,29 +1,30 @@
 // src/booking/booking.service.ts
 
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Booking, BookingDocument } from './booking.schema';
-import { SportService, SportServiceDocument } from 'src/sport-service/sport-service.schema';
 import * as moment from 'moment-timezone';
-import { NotificationService } from 'src/notification/notification.service';
-import { UsersService } from 'src/users/users.service';
-import { CreateBookingDto } from './dtos/create-booking.dto';
-import { NotificationType } from 'src/common/enums/notification-enum';
-
+import { CreateBookingDto } from './dtos/create-booking.dto'; // Corrected DTO import
+import { SportServiceService } from 'src/sport-service/sport-service.service';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { BookingCreatedEvent, BookingStatusUpdatedEvent } from './booking.events'; // Import event classes
+import { User } from 'src/users/schema/user.schema';
+import { Role } from 'src/common/enums/role.enum';
+import { UpdateBookingDto } from './dtos/update-booking.dto';
+import { BookingStatus } from 'src/common/enums/booking-status.enum';
 @Injectable()
 export class BookingService {
     private readonly APP_TIMEZONE = 'Asia/Kolkata'; // Or load from config
 
     constructor(
+        private eventEmitter: EventEmitter2, // Inject EventEmitter2
         @InjectModel(Booking.name) private bookingModel: Model<BookingDocument>,
-        @InjectModel(SportService.name) private sportServiceMode: Model<SportServiceDocument>,
-        private readonly notificationService: NotificationService, // Inject NotificationService
-        private readonly usersService: UsersService, // Inject UsersService
+        private readonly sportService: SportServiceService, // Inject UsersService
     ) { }
 
     async getAvailableSlots(serviceId: string, dateString: string, timezone: string = 'Asia/Kolkata'): Promise<string[]> {
-        const service = await this.sportServiceMode.findById(serviceId).exec();
+        const service = await this.sportService.findById(serviceId);
         if (!service) {
             throw new NotFoundException('Sport service not found.');
         }
@@ -102,7 +103,7 @@ export class BookingService {
         const { serviceId, bookingDate, startTime, endTime, notes } = createBookingDto;
 
         // 1. Fetch SportService and Club Details
-        const service = await this.sportServiceMode.findById(serviceId).populate('club').exec();
+        const service = await this.sportService.findById(serviceId);
         if (!service || !service.isActive) {
             throw new NotFoundException('Sport service not found or is inactive.');
         }
@@ -183,7 +184,7 @@ export class BookingService {
             endTime: endTime,
             durationHours: durationHours,
             totalPrice: totalPrice,
-            status: 'pending', // Default status upon creation
+            status: BookingStatus.Pending, // Default status upon creation
             paymentStatus: 'pending', // Assume payment is pending at creation
             notes: notes,
         });
@@ -191,26 +192,101 @@ export class BookingService {
         const createdBooking = await newBooking.save();
 
         // 6. Trigger Notification to Club Owner
-        // Fetch club owner's Firebase UID for push notification
-        const clubOwner = await this.usersService.findById(club.id.toString());
-        if (clubOwner && clubOwner.uid) {
-            await this.notificationService.sendPushNotification(
-                clubOwner.uid,
-                'New Booking Request!',
-                `A new booking for ${service.name} on ${bookingDate} from ${startTime} to ${endTime} needs your review.`,
-                { bookingId: createdBooking.id.toString(), type: 'new_booking' }
-            );
-
-            // Also create an in-app notification
-            await this.notificationService.createNotification(
-                clubOwner.id,
-                'New Booking Request!',
-                `New booking for ${service.name} (${bookingMomentDate.format('MMM D')}, ${startTime}-${endTime}).`,
-                NotificationType.BookingPending,
-                createdBooking.id
-            );
-        }
+        // Emit event after successful creation
+        this.eventEmitter.emit('booking.created', new BookingCreatedEvent(createdBooking, service));
 
         return createdBooking;
+    }
+
+    async findDistinctCustomersId(query: any = {}): Promise<Types.ObjectId[]> {
+        return this.bookingModel.find(query).select('customer').distinct('customer').exec();
+    }
+
+    /**
+     * Updates an existing booking, primarily its status or notes.
+     * @param bookingId The ID of the booking to update.
+     * @param updateBookingDto The DTO containing update data.
+     * @param currentUser The user performing the update.
+     * @returns The updated Booking document.
+     */
+    async updateBooking(
+        bookingId: string,
+        updateBookingDto: UpdateBookingDto,
+        currentUser: User, // Assuming User object from JWT
+    ): Promise<Booking> {
+        const bookingObjectId = new Types.ObjectId(bookingId);
+        const booking = await this.bookingModel.findById(bookingObjectId)
+            .populate('club')
+            .populate('customer')
+            .populate('service')
+            .exec()
+
+        if (!booking) {
+            throw new NotFoundException(`Booking with ID ${bookingId} not found.`);
+        }
+
+        const { status: newStatus, notes } = updateBookingDto;
+
+        // Authorization: Who can update what?
+        let isClubOwner = false
+        let isCustomer = false
+        isCustomer = booking.customer && booking.customer.id.toString() === currentUser.id.toString();
+        if (booking.club && !(booking.club instanceof Types.ObjectId)) {
+            isClubOwner = booking.club && booking.club.owner && booking.club.owner.toString() === currentUser.id.toString();
+        }
+        const isAdmin = currentUser.roles.includes(Role.Admin);
+
+        if (newStatus) {
+            // Validate status transitions and permissions
+            if (isCustomer) {
+                if (newStatus === BookingStatus.CancelledByCustomer &&
+                    (booking.status === BookingStatus.Pending || booking.status === BookingStatus.Confirmed)) {
+                    // Customer can cancel their pending or confirmed bookings
+                    booking.status = newStatus;
+                } else if (booking.status !== newStatus) { // Allow updating notes without changing status
+                    throw new ForbiddenException('You are not allowed to set this booking status.');
+                }
+            } else if (isClubOwner || isAdmin) {
+                // Club owner or Admin can manage statuses more broadly
+                if (newStatus === BookingStatus.Confirmed && booking.status === BookingStatus.Pending) {
+                    booking.status = newStatus;
+                } else if (newStatus === BookingStatus.CancelledByClub &&
+                    (booking.status === BookingStatus.Pending || booking.status === BookingStatus.Confirmed)) {
+                    booking.status = newStatus;
+                } else if (newStatus === BookingStatus.Completed && booking.status === BookingStatus.Confirmed) {
+                    // Potentially automated or manual completion
+                    booking.status = newStatus;
+                } else if (newStatus === BookingStatus.NoShow && booking.status === BookingStatus.Confirmed) {
+                    booking.status = newStatus;
+                } else if (isAdmin) { // Admin has more leeway
+                    booking.status = newStatus;
+                } else if (booking.status !== newStatus) {
+                    throw new ForbiddenException(`As a club owner, you cannot set the status from ${booking.status} to ${newStatus}.`);
+                }
+            } else {
+                throw new ForbiddenException('You do not have permission to update this booking status.');
+            }
+        }
+
+        if (notes !== undefined) {
+            if (isCustomer || isClubOwner || isAdmin) {
+                booking.notes = notes;
+            } else {
+                throw new ForbiddenException('You do not have permission to update notes for this booking.');
+            }
+        }
+
+        if (!newStatus && notes === undefined) {
+            throw new BadRequestException('No update data provided (status or notes).');
+        }
+
+        const updatedBooking = await booking.save();
+
+        // Emit event if status changed
+        if (newStatus && booking.status === newStatus) { // Check if status actually changed to the newStatus
+            this.eventEmitter.emit('booking.status_updated', new BookingStatusUpdatedEvent(updatedBooking.id, updatedBooking.status as BookingStatus, booking));
+        }
+
+        return updatedBooking;
     }
 }

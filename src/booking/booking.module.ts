@@ -14,7 +14,6 @@ import { SportServiceModule } from 'src/sport-service/sport-service.module';
   imports: [
     MongooseModule.forFeature([
       { name: Booking.name, schema: BookingSchema },
-      { name: SportService.name, schema: SportServiceSchema },
     ]),
     forwardRef(() => NotificationModule), 
     forwardRef(() => UsersModule), 

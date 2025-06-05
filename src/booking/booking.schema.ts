@@ -1,16 +1,19 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, HydratedDocument, Types } from 'mongoose';
+import { SportClub } from 'src/sport-club/sport-club.schema';
+import { SportService } from 'src/sport-service/sport-service.schema';
+import { User } from 'src/users/schema/user.schema';
 
 export type BookingDocument = HydratedDocument<Booking>;
 
 @Schema({timestamps:true})
 export class Booking extends Document {
     @Prop({ type: Types.ObjectId, ref: 'User', required: true, index: true })
-    customer: Types.ObjectId
+    customer: Types.ObjectId | User
     @Prop({ type: Types.ObjectId, ref: 'SportClub', required: true, index: true })
-    club: Types.ObjectId
+    club: Types.ObjectId | SportClub
     @Prop({ type: Types.ObjectId, ref: 'SportService', required: true, index: true })
-    service: Types.ObjectId
+    service: Types.ObjectId | SportService
     @Prop({ required: true, index: true })
     bookingDate: Date
     @Prop({ required: true, match: /^([01]\d|2[0-3]):([0-5]\d)$/ })
