@@ -1,12 +1,11 @@
 // src/notification/notification.controller.ts
-import { Controller, Get, Patch, Query, Body, UseGuards, Req, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Query, Body, UseGuards, Req, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { NotificationService } from './notification.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
-import { IsOptional, IsBooleanString } from 'class-validator';
 import { MarkNotificationsReadDto } from './dtos/mark-notifications-read.dto';
 
 @Controller('notifications')
@@ -35,7 +34,7 @@ export class NotificationController {
         );
     }
 
-    @Patch('mark-read')
+    @Post('mark-read')
     @HttpCode(HttpStatus.NO_CONTENT) // 204 No Content for successful update without returning data
     async markSelectedNotificationsAsRead(
         @Req() req: { user: JwtPayload },
@@ -46,7 +45,7 @@ export class NotificationController {
         return; // Return nothing, as per 204 No Content
     }
 
-    @Patch('mark-all-read')
+    @Post('mark-all-read')
     @HttpCode(HttpStatus.NO_CONTENT)
     async markAllMyNotificationsAsRead(@Req() req: { user: JwtPayload }) {
         const userId = req.user.sub;
