@@ -1,6 +1,6 @@
 // src/booking/booking.service.ts
 
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Booking, BookingDocument } from './booking.schema';
@@ -9,18 +9,19 @@ import { CreateBookingDto } from './dtos/create-booking.dto'; // Corrected DTO i
 import { SportServiceService } from 'src/sport-service/sport-service.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { BookingCreatedEvent, BookingStatusUpdatedEvent } from './booking.events'; // Import event classes
-import { User } from 'src/users/schema/user.schema';
 import { Role } from 'src/common/enums/role.enum';
 import { UpdateBookingDto } from './dtos/update-booking.dto';
 import { BookingStatus } from 'src/common/enums/booking-status.enum';
+import { JwtPayload } from 'src/auth/strategies/jwt.strategy';
 @Injectable()
 export class BookingService {
     private readonly APP_TIMEZONE = 'Asia/Kolkata'; // Or load from config
+    private readonly logger = new Logger(BookingService.name);
 
     constructor(
         private eventEmitter: EventEmitter2, // Inject EventEmitter2
         @InjectModel(Booking.name) private bookingModel: Model<BookingDocument>,
-        private readonly sportService: SportServiceService, // Inject UsersService
+        private readonly sportService: SportServiceService,
     ) { }
 
     async getAvailableSlots(serviceId: string, dateString: string, timezone: string = 'Asia/Kolkata'): Promise<string[]> {
@@ -28,6 +29,7 @@ export class BookingService {
         if (!service) {
             throw new NotFoundException('Sport service not found.');
         }
+        this.logger.debug(`Getting available slots for service ${serviceId} on ${dateString}`);
 
         const bookingDate = moment.tz(dateString, 'YYYY-MM-DD', timezone).startOf('day');
         const dayOfWeek = bookingDate.format('ddd'); // E.g., "Mon", "Tue"
@@ -86,6 +88,7 @@ export class BookingService {
             });
         }
 
+        this.logger.debug(`Found ${availableDisplaySlots.length} available slots for service ${serviceId} on ${dateString}`);
         return availableDisplaySlots;
     }
 
@@ -101,6 +104,7 @@ export class BookingService {
    */
     async createBooking(customerId: string, createBookingDto: CreateBookingDto): Promise<Booking> {
         const { serviceId, bookingDate, startTime, endTime, notes } = createBookingDto;
+        this.logger.log(`Attempting to create booking for customer ${customerId}, service ${serviceId} on ${bookingDate} ${startTime}-${endTime}`);
 
         // 1. Fetch SportService and Club Details
         const service = await this.sportService.findById(serviceId);
@@ -111,6 +115,7 @@ export class BookingService {
             throw new NotFoundException('Sport service is not associated with a club.');
         }
 
+        this.logger.debug(`Service found: ${service.name}, Club: ${service.club}`);
         const club = service.club; // The populated club document or ID if not populated
 
         // 2. Date and Time Validation & Normalization
@@ -125,11 +130,13 @@ export class BookingService {
 
         // Basic time validation
         if (!slotStartMoment.isValid() || !slotEndMoment.isValid() || slotStartMoment.isSameOrAfter(slotEndMoment)) {
+            this.logger.warn(`Invalid time format or range: ${startTime}-${endTime}`);
             throw new BadRequestException('Invalid start or end time for booking.');
         }
 
         // Ensure booking is in the future
         if (slotStartMoment.isSameOrBefore(moment.tz(this.APP_TIMEZONE))) {
+            this.logger.warn(`Attempted to book in the past: ${bookingDate} ${startTime}`);
             throw new BadRequestException('Bookings can only be made for future slots.');
         }
 
@@ -140,12 +147,14 @@ export class BookingService {
             slotStartMoment.isBefore(serviceOpeningMoment) || // Redundant, but good for clarity
             slotEndMoment.isAfter(serviceClosingMoment)
         ) {
+            this.logger.warn(`Service not available at requested time: ${dayOfWeek} ${startTime}-${endTime}`);
             throw new BadRequestException(`Service is not available during the requested time (${dayOfWeek} ${startTime}-${endTime}).`);
         }
 
         // Validate slot duration matches service's defined slot duration
         const requestedDurationMinutes = slotEndMoment.diff(slotStartMoment, 'minutes');
         if (requestedDurationMinutes % service.slotDurationMinutes !== 0 || requestedDurationMinutes === 0) {
+            this.logger.warn(`Invalid duration requested: ${requestedDurationMinutes} minutes, service slot: ${service.slotDurationMinutes}`);
             throw new BadRequestException(`Booking duration must be in multiples of ${service.slotDurationMinutes} minutes and at least one slot.`);
         }
         const durationHours = requestedDurationMinutes / 60;
@@ -168,6 +177,7 @@ export class BookingService {
         }).exec();
 
         if (overlappingBookings) {
+            this.logger.warn(`Slot conflict detected for service ${serviceId} on ${bookingDate} ${startTime}-${endTime}`);
             throw new ConflictException('The requested time slot is already booked or pending confirmation.');
         }
 
@@ -190,6 +200,7 @@ export class BookingService {
         });
 
         const createdBooking = await newBooking.save();
+        this.logger.log(`Booking created successfully with ID: ${createdBooking.id}`);
 
         // 6. Trigger Notification to Club Owner
         // Emit event after successful creation
@@ -212,8 +223,10 @@ export class BookingService {
     async updateBooking(
         bookingId: string,
         updateBookingDto: UpdateBookingDto,
-        currentUser: User, // Assuming User object from JWT
+        currentUser: JwtPayload, // Assuming User object from JWT
     ): Promise<Booking> {
+        const currentUserId = currentUser.sub;
+        this.logger.log(`Attempting to update booking ${bookingId} by user ${currentUser}`);
         const bookingObjectId = new Types.ObjectId(bookingId);
         const booking = await this.bookingModel.findById(bookingObjectId)
             .populate('club')
@@ -222,6 +235,7 @@ export class BookingService {
             .exec()
 
         if (!booking) {
+            this.logger.warn(`Booking ${bookingId} not found for update.`);
             throw new NotFoundException(`Booking with ID ${bookingId} not found.`);
         }
 
@@ -230,9 +244,10 @@ export class BookingService {
         // Authorization: Who can update what?
         let isClubOwner = false
         let isCustomer = false
-        isCustomer = booking.customer && booking.customer.id.toString() === currentUser.id.toString();
+        this.logger.debug(`Checking permissions for user ${currentUserId} on booking ${bookingId}`);
+        isCustomer = booking.customer && booking.customer.id.toString() === currentUserId;
         if (booking.club && !(booking.club instanceof Types.ObjectId)) {
-            isClubOwner = booking.club && booking.club.owner && booking.club.owner.toString() === currentUser.id.toString();
+            isClubOwner = booking.club && booking.club.owner && booking.club.owner.toString() === currentUserId;
         }
         const isAdmin = currentUser.roles.includes(Role.Admin);
 
@@ -244,6 +259,7 @@ export class BookingService {
                     // Customer can cancel their pending or confirmed bookings
                     booking.status = newStatus;
                 } else if (booking.status !== newStatus) { // Allow updating notes without changing status
+                    this.logger.warn(`Customer ${currentUser} attempted invalid status transition from ${booking.status} to ${newStatus} for booking ${bookingId}.`);
                     throw new ForbiddenException('You are not allowed to set this booking status.');
                 }
             } else if (isClubOwner || isAdmin) {
@@ -261,9 +277,11 @@ export class BookingService {
                 } else if (isAdmin) { // Admin has more leeway
                     booking.status = newStatus;
                 } else if (booking.status !== newStatus) {
+                    this.logger.warn(`User ${currentUser} (Owner/Admin) attempted invalid status transition from ${booking.status} to ${newStatus} for booking ${bookingId}.`);
                     throw new ForbiddenException(`As a club owner, you cannot set the status from ${booking.status} to ${newStatus}.`);
                 }
             } else {
+                this.logger.warn(`User ${currentUser} attempted to update status without sufficient permissions for booking ${bookingId}.`);
                 throw new ForbiddenException('You do not have permission to update this booking status.');
             }
         }
@@ -272,15 +290,18 @@ export class BookingService {
             if (isCustomer || isClubOwner || isAdmin) {
                 booking.notes = notes;
             } else {
+                this.logger.warn(`User ${currentUser} attempted to update notes without sufficient permissions for booking ${bookingId}.`);
                 throw new ForbiddenException('You do not have permission to update notes for this booking.');
             }
         }
 
         if (!newStatus && notes === undefined) {
+            this.logger.warn(`Update booking called with no data for booking ${bookingId}.`);
             throw new BadRequestException('No update data provided (status or notes).');
         }
 
         const updatedBooking = await booking.save();
+        this.logger.log(`Booking ${bookingId} updated successfully.`);
 
         // Emit event if status changed
         if (newStatus && booking.status === newStatus) { // Check if status actually changed to the newStatus
