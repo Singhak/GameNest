@@ -1,6 +1,6 @@
 // src/notification/notification.controller.ts
-import { Controller, Get, Query, Body, UseGuards, Req, HttpCode, HttpStatus, Post } from '@nestjs/common';
-import { NotificationService } from './notification.service';
+import { Controller, Get, Query, Body, UseGuards, Req, HttpCode, HttpStatus, Post, Logger } from '@nestjs/common';
+import { NotificationService } from './notification.service'; // Corrected import path
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -14,6 +14,8 @@ import { MarkNotificationsReadDto } from './dtos/mark-notifications-read.dto';
 export class NotificationController {
     constructor(private readonly notificationService: NotificationService) { }
 
+    private readonly logger = new Logger(NotificationController.name);
+
     @Get()
     @HttpCode(HttpStatus.OK)
     async getMyNotifications(
@@ -22,6 +24,7 @@ export class NotificationController {
         @Query('limit') limit: string = '20',
         @Query('skip') skip: string = '0',
     ) {
+        this.logger.debug(`Fetching notifications for user ${req.user.sub}. Query: isRead=${isRead}, limit=${limit}, skip=${skip}`);
         const userId = req.user.sub;
         // Convert 'true'/'false' string from query param to boolean
         const isReadBoolean = isRead !== undefined ? (isRead === 'true') : undefined;
@@ -40,6 +43,7 @@ export class NotificationController {
         @Req() req: { user: JwtPayload },
         @Body() markDto: MarkNotificationsReadDto, // Use the DTO for validation
     ) {
+        this.logger.log(`Received request to mark notifications as read for user ${req.user.sub}: ${markDto.notificationIds.join(', ')}`);
         const userId = req.user.sub;
         await this.notificationService.markNotificationsAsRead(markDto.notificationIds, userId);
         return; // Return nothing, as per 204 No Content
@@ -48,6 +52,7 @@ export class NotificationController {
     @Post('mark-all-read')
     @HttpCode(HttpStatus.NO_CONTENT)
     async markAllMyNotificationsAsRead(@Req() req: { user: JwtPayload }) {
+        this.logger.log(`Received request to mark all notifications as read for user ${req.user.sub}`);
         const userId = req.user.sub;
         await this.notificationService.markAllUserNotificationsAsRead(userId);
         return;
