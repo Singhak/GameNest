@@ -1,5 +1,5 @@
-import { Controller, Post, Body, Get, UseGuards, Request, HttpCode, HttpStatus, NotFoundException, Logger } from '@nestjs/common';
-import { AuthService }  from './auth.service';
+import { Controller, Post, Body, Get, UseGuards, Request, HttpCode, HttpStatus, NotFoundException, Logger, Req, UnauthorizedException } from '@nestjs/common';
+import { AuthService } from './auth.service';
 import { LoginDto } from './dtos/login.dto'; // Corrected import path
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -11,7 +11,7 @@ import { Role } from '../common/enums/role.enum';
 export class AuthController {
   private readonly logger = new Logger(AuthController.name);
 
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly authService: AuthService) { }
 
   /**
    * Endpoint for user login.
@@ -52,7 +52,7 @@ export class AuthController {
     const { firebaseUid, roles } = assignRolesDto;
     this.logger.log(`Received request to assign roles ${roles.join(', ')} to Firebase UID: ${firebaseUid}`);
     const updatedUser = await this.authService.assignRoles(firebaseUid, roles);
-    if(!updatedUser) {
+    if (!updatedUser) {
       this.logger.warn(`User with Firebase UID ${firebaseUid} not found during role assignment.`);
       throw new NotFoundException('User does not exist'); // Corrected typo
     }
@@ -64,5 +64,14 @@ export class AuthController {
         roles: updatedUser.roles,
       },
     };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('refresh-access-token')
+  async refreshAccessToken(@Req() req, @Body() body: { refreshToken: string }) {
+    // 1. Extract user ID and refreshtoken
+    const { refreshToken } = body;
+    const userId = req.user.id;
+    return this.authService.refreshAccessToken(userId, refreshToken);
   }
 }

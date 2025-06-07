@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, Logger, NotFoundException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService, } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
@@ -7,6 +7,7 @@ import { FirebaseService } from '../firebase/firebase.service';
 import { LoginDto } from './dtos/login.dto';
 import { Role } from 'src/common/enums/role.enum';
 import { User } from 'src/users/schema/user.schema';
+import { RefreshTokenEntry } from 'src/users/dtos/refresh-token.dto';
 
 @Injectable()
 export class AuthService {
@@ -65,7 +66,7 @@ export class AuthService {
         uid: user.uid,
         email: user.email,
         roles: user.roles, // Roles from your local database
-        sub: user.id, // Subject of the token, typically the primary key in your database
+        id: user.id, // Subject of the token, typically the primary key in your database
       };
 
       const accessToken = this.jwtService.sign(payload);
@@ -80,7 +81,7 @@ export class AuthService {
       const issuedAt = new Date();
 
       // Store the new refresh token hash in the array
-      await this.usersService.addRefreshToken(user.id, {
+      await this.addRefreshToken(user.id, {
         tokenHash: hashedRefreshToken,
         expiresAt: refreshTokenExpiresAt,
         issuedAt: issuedAt,
@@ -126,5 +127,161 @@ export class AuthService {
     this.logger.log(`Roles ${roles.join(', ')} assigned to user ${user.id} (Firebase UID: ${firebaseUid}).`);
 
     return updatedUser;
+  }
+
+  /**
+      * Hashes a refresh token before storing it in the database.
+      * @param refreshToken The plain text refresh token.
+      * @returns The hashed refresh token.
+      */
+  async hashRefreshToken(refreshToken: string): Promise<string> {
+    const saltRounds = 10; // Adjust based on your security needs
+    return bcrypt.hash(refreshToken, saltRounds);
+  }
+
+  /**
+   * Verifies a refresh token against its stored hash.
+   * @param refreshToken The plain text refresh token.
+   * @param storedHash The stored hash to compare against.
+   * @returns True if the token matches the hash, false otherwise.
+   */
+  async verifyRefreshToken(refreshToken: string, storedHash: string): Promise<boolean> {
+    return bcrypt.compare(refreshToken, storedHash);
+  }
+
+  /**
+* Adds a new refresh token entry for a user.
+* @param userId The local ID of the user.
+* @param tokenEntry The new refresh token entry to add.
+* @returns The updated user.
+*/
+  async addRefreshToken(userId: string, tokenEntry: RefreshTokenEntry): Promise<User | null> {
+    this.logger.debug(`Adding refresh token for user ${userId}`);
+    const user = await this.usersService.findById(userId)
+    if (!user) {
+      this.logger.warn(`User not found for adding refresh token: ${userId}`);
+      throw new NotFoundException(`User with ID ${userId} not found.`);
+    }
+    user.refreshTokens = user.refreshTokens || []; // Ensure array exists
+    user.refreshTokens.push(tokenEntry);
+    return this.usersService.updateUserById(userId, { refreshTokens: user.refreshTokens });
+  }
+
+  /**
+   * Updates an existing refresh token entry for a user.
+   * Typically used during refresh token rotation.
+   * @param userId The local ID of the user.
+   * @param oldTokenHash The hash of the refresh token to replace.
+   * @param newTokenEntry The new refresh token entry.
+   * @returns The updated user.
+   */
+  async updateSpecificRefreshToken(userId: string, oldTokenHash: string, newTokenEntry: RefreshTokenEntry): Promise<User | null> {
+    this.logger.debug(`Updating specific refresh token for user ${userId}`);
+    const user = await this.usersService.findById(userId);
+    if (!user || !user.refreshTokens) {
+      throw new NotFoundException(`User with ID ${userId} or their refresh tokens not found.`);
+    }
+    this.logger.debug(`User found, searching for old token hash: ${oldTokenHash} to replace`);
+    const tokenIndex = user.refreshTokens.findIndex(rt => rt.tokenHash === oldTokenHash);
+    if (tokenIndex === -1) {
+      throw new NotFoundException(`Refresh token not found for user ${userId}.`);
+    }
+    user.refreshTokens[tokenIndex] = newTokenEntry;
+    return this.usersService.updateUserById(userId, { refreshTokens: user.refreshTokens });
+  }
+
+  /**
+   * Removes a specific refresh token entry for a user.
+   * Used for "logout from current device".
+   * @param userId The local ID of the user.
+   * @param tokenHash The hash of the refresh token to remove.
+   * @returns The updated user.
+   */
+  async removeRefreshToken(userId: string, tokenHash: string): Promise<User | null> {
+    this.logger.debug(`Removing refresh token for user ${userId}`);
+    const user = await this.usersService.findById(userId);
+    if (!user || !user.refreshTokens) {
+      this.logger.warn(`User not found or no refresh tokens to remove: ${userId}`);
+      throw new NotFoundException(`User with ID ${userId} or their refresh tokens not found.`);
+    }
+    user.refreshTokens = user.refreshTokens.filter(rt => rt.tokenHash !== tokenHash);
+    return this.usersService.updateUserById(userId, { refreshTokens: user.refreshTokens });
+  }
+
+  /**
+   * Removes all refresh tokens for a user.
+   * Used for "logout from all devices".
+   * @param userId The local ID of the user.
+   * @returns The updated user.
+   */
+  async clearAllRefreshTokens(userId: string): Promise<User | null> {
+    this.logger.log(`Clearing all refresh tokens for user ${userId}`);
+    return this.usersService.updateUserById(userId, { refreshTokens: [] });
+  }
+
+  /**
+   * Finds a refresh token entry by its hash for a given user.
+   * @param userId The local ID of the user.
+   * @param tokenHash The hash of the refresh token to find.
+   * @returns The RefreshTokenEntry or undefined.
+   */
+  async findRefreshTokenEntry(userId: string, tokenHash: string): Promise<RefreshTokenEntry | undefined> {
+    this.logger.debug(`Finding refresh token entry for user ${userId} with hash ${tokenHash}`);
+    const user = await this.usersService.findById(userId);
+    if (!user || !user.refreshTokens) {
+      return undefined;
+    }
+    return user.refreshTokens.find(rt => rt.tokenHash === tokenHash);
+  }
+
+  async refreshAccessToken(userId: string, oldRefreshToken: string) {
+    if (!userId || !oldRefreshToken) {
+      throw new UnauthorizedException('Invalid refresh token request');
+    }
+
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+    // 2. Find and validate the refresh token
+    const oldHashRefreshToken = await this.hashRefreshToken(oldRefreshToken);
+    const tokenEntry = await this.findRefreshTokenEntry(userId, oldHashRefreshToken);
+
+    if (!tokenEntry || tokenEntry.expiresAt < new Date()) {
+      await this.removeRefreshToken(userId, oldHashRefreshToken); // Remove invalid token
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+
+    // 3. Generate a custom JWT containing essential user info and roles
+    // This JWT will be used for subsequent requests to our NestJS backend
+
+    const payload = {
+      uid: user.uid,
+      email: user.email,
+      roles: user.roles, // Roles from your local database
+      id: user.id, // Subject of the token, typically the primary key in your database
+    };
+
+    const accessToken = this.jwtService.sign(payload);
+
+    const refreshToken = this.jwtService.sign(payload, {
+      secret: this.configService.get<string>('jwt.refreshSecret'),
+      expiresIn: this.configService.get<string>('jwt.refreshExpiresIn'),
+    });
+
+    const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
+    const refreshTokenExpiresAt = new Date(Date.now() + parseInt(this.configService.get('jwt.refreshExpiresIn')?.replace('d', '')) * 24 * 60 * 60 * 1000); // Convert '7d' to milliseconds
+    const issuedAt = new Date();
+
+    await this.updateSpecificRefreshToken(userId, oldHashRefreshToken, {
+      tokenHash: hashedRefreshToken,
+      expiresAt: refreshTokenExpiresAt,
+      issuedAt: issuedAt,
+    });
+
+    return {
+      accessToken,
+      refreshToken  // Send the *plain* new refresh token to the client
+    };
   }
 }

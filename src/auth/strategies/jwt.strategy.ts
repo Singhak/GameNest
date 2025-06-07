@@ -11,7 +11,7 @@ export interface JwtPayload {
   uid: string; // Firebase UID
   email: string;
   roles: string[]; // User roles
-  sub: string; // Local database user ID (if applicable)
+  id: string; // Local database user ID (if applicable)
 }
 
 @Injectable()
@@ -39,7 +39,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
    */
   async validate(payload: JwtPayload): Promise<Partial<User>> {
     // Here, you can optionally fetch the full user from your database
-    // using payload.uid or payload.sub to ensure the user still exists
+    // using payload.uid or payload.id to ensure the user still exists
     // and their roles are up-to-date.
     const user = await this.usersService.findByFirebaseUid(payload.uid);
 
@@ -54,7 +54,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     // Return the payload. This object will be attached to `req.user`
     // and will be available in controllers and guards.
     return {
-      id: payload.sub,
+      id: payload.id,
       uid: payload.uid,
       email: payload.email,
       roles: payload.roles as Role[],
