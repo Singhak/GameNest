@@ -23,7 +23,7 @@ export class SportServiceService {
         return this.sportServiceModel.find({ club: clubId }).lean().exec();
     }
 
-    async addSport(sportDto: CreateSportServiceDto): Promise<SportService> {
+    async addSport(sportDto: CreateSportServiceDto | CreateSportServiceDto[]): Promise<SportService> {
         return this.sportServiceModel.create(sportDto);
     }
 

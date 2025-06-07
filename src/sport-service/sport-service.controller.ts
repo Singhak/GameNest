@@ -17,13 +17,18 @@ export class SportServiceController {
         return this.sportService.getSportServiceById(id);
     }
 
-    @Get(':clubId')
+    @Get('club/:clubId')
     async getByClubId(@Param('clubId') clubId: string) {
         return this.sportService.getSportServicesByClubId(clubId);
     }
 
     @Post()
     async create(@Body() createSportServiceDto: CreateSportServiceDto) {
+        return this.sportService.addSport(createSportServiceDto);
+    }
+
+    @Post('multi')
+    async createMultiple(@Body() createSportServiceDto: CreateSportServiceDto[]) {
         return this.sportService.addSport(createSportServiceDto);
     }
 
