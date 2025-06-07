@@ -6,6 +6,8 @@ import { Model } from 'mongoose';
 import { RefreshTokenEntry } from './dtos/refresh-token.dto';
 import { FirebaseService } from 'src/firebase/firebase.service';
 import { CreateUserDto } from './dtos/create-user.dto';
+import { UpdateUserDto } from './dtos/update-user.dto';
+import * as bcrypt from 'bcryptjs';
 
 @Injectable()
 export class UsersService {
@@ -60,7 +62,7 @@ export class UsersService {
      * @param updateData The partial user data to update.
      * @returns The updated user object.
      */
-    async updateUserById(id: string, updateData: Partial<User>): Promise<User | null> {
+    async updateUserById(id: string, updateData: UpdateUserDto): Promise<User | null> {
         this.logger.debug(`Updating user by ID: ${id} with data: ${JSON.stringify(updateData)}`);
         return this.userModel.findByIdAndUpdate(id, updateData, { new: true }).lean().exec();
     }
@@ -72,91 +74,6 @@ export class UsersService {
     async findAll(): Promise<Partial<User>[]> {
         this.logger.debug('Finding all users');
         return this.userModel.find().lean().exec();
-    }
-
-    /**
-   * Adds a new refresh token entry for a user.
-   * @param userId The local ID of the user.
-   * @param tokenEntry The new refresh token entry to add.
-   * @returns The updated user.
-   */
-    async addRefreshToken(userId: string, tokenEntry: RefreshTokenEntry): Promise<User | null> {
-        this.logger.debug(`Adding refresh token for user ${userId}`);
-        const user = await this.userModel.findById(userId).lean().exec();
-        if (!user) {
-            this.logger.warn(`User not found for adding refresh token: ${userId}`);
-            throw new NotFoundException(`User with ID ${userId} not found.`);
-        }
-        user.refreshTokens = user.refreshTokens || []; // Ensure array exists
-        user.refreshTokens.push(tokenEntry);
-        return this.updateUserById(userId, { refreshTokens: user.refreshTokens });
-    }
-
-    /**
-     * Updates an existing refresh token entry for a user.
-     * Typically used during refresh token rotation.
-     * @param userId The local ID of the user.
-     * @param oldTokenHash The hash of the refresh token to replace.
-     * @param newTokenEntry The new refresh token entry.
-     * @returns The updated user.
-     */
-    async updateSpecificRefreshToken(userId: string, oldTokenHash: string, newTokenEntry: RefreshTokenEntry): Promise<User | null> {
-        this.logger.debug(`Updating specific refresh token for user ${userId}`);
-        const user = await this.findById(userId);
-        if (!user || !user.refreshTokens) {
-            throw new NotFoundException(`User with ID ${userId} or their refresh tokens not found.`);
-        }
-        this.logger.debug(`User found, searching for token hash: ${oldTokenHash}`);
-        const tokenIndex = user.refreshTokens.findIndex(rt => rt.tokenHash === oldTokenHash);
-        if (tokenIndex === -1) {
-            throw new NotFoundException(`Refresh token not found for user ${userId}.`);
-        }
-        user.refreshTokens[tokenIndex] = newTokenEntry;
-        return this.updateUserById(userId, { refreshTokens: user.refreshTokens });
-    }
-
-    /**
-     * Removes a specific refresh token entry for a user.
-     * Used for "logout from current device".
-     * @param userId The local ID of the user.
-     * @param tokenHash The hash of the refresh token to remove.
-     * @returns The updated user.
-     */
-    async removeRefreshToken(userId: string, tokenHash: string): Promise<User | null> {
-        this.logger.debug(`Removing refresh token for user ${userId}`);
-        const user = await this.findById(userId);
-        if (!user || !user.refreshTokens) {
-            this.logger.warn(`User not found for removing refresh token: ${userId}`);
-            throw new NotFoundException(`User with ID ${userId} or their refresh tokens not found.`);
-        }
-        user.refreshTokens = user.refreshTokens.filter(rt => rt.tokenHash !== tokenHash);
-        return this.updateUserById(userId, { refreshTokens: user.refreshTokens });
-    }
-
-    /**
-     * Removes all refresh tokens for a user.
-     * Used for "logout from all devices".
-     * @param userId The local ID of the user.
-     * @returns The updated user.
-     */
-    async clearAllRefreshTokens(userId: string): Promise<User | null> {
-        this.logger.log(`Clearing all refresh tokens for user ${userId}`);
-        return this.updateUserById(userId, { refreshTokens: [] });
-    }
-
-    /**
-     * Finds a refresh token entry by its hash for a given user.
-     * @param userId The local ID of the user.
-     * @param tokenHash The hash of the refresh token to find.
-     * @returns The RefreshTokenEntry or undefined.
-     */
-    async findRefreshTokenEntry(userId: string, tokenHash: string): Promise<RefreshTokenEntry | undefined> {
-        this.logger.debug(`Finding refresh token entry for user ${userId} with hash ${tokenHash}`);
-        const user = await this.findById(userId);
-        if (!user || !user.refreshTokens) {
-            return undefined;
-        }
-        return user.refreshTokens.find(rt => rt.tokenHash === tokenHash);
     }
 
     /**

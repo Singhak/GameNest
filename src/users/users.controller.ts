@@ -6,7 +6,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
 import { JwtPayload } from '../auth/strategies/jwt.strategy'; // Use the local JwtPayload type
 import { UpdateFcmTokenDto } from './dtos/update-fcm-token.dto';
-import { User } from './schema/user.schema'; // Import User schema for typing
+import { UpdateUserDto } from './dtos/update-user.dto';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard, RolesGuard) // Apply JWT authentication and RolesGuard globally for this controller
@@ -36,7 +36,7 @@ export class UsersController {
     return user;
   }
 
-  @Get('use-info')
+  @Get('use-info/:id')
   async getUseDetail(@Param('id') id: string) {
     this.logger.debug(`Fetching user detail by ID: ${id}`);
     const user = await this.usersService.findById(id);
@@ -48,14 +48,27 @@ export class UsersController {
     return user;
   }
 
-  @Patch('fcm-token')
+  @Post('my-info')
+  @Roles(Role.User, Role.Editor, Role.Admin, Role.Owner) // Any authenticated user can update their own info
+  async updateMyInfo(
+    @Request() req: { user: JwtPayload },
+    @Body() updateUserDto: UpdateUserDto,
+  ) {
+    const userId = req.user.id; // Get user ID from JWT payload
+    this.logger.log(`User ${userId} attempting to update their profile with data: ${JSON.stringify(updateUserDto)}`);
+    const updatedUser = await this.usersService.updateUserById(userId, updateUserDto);
+    this.logger.log(`User ${userId} profile updated successfully.`);
+    return updatedUser;
+  }
+
+  @Post('fcm-token')
   @Roles(Role.User, Role.Owner, Role.Admin) // Any authenticated user can update their FCM token
   async updateFcmToken(
     @Request() req: { user: JwtPayload },
     @Body() updateFcmTokenDto: UpdateFcmTokenDto,
   ) {
-    this.logger.debug(`Updating FCM token for user ${req.user.sub}`);
-    const userId = req.user.sub!;
+    this.logger.debug(`Updating FCM token for user ${req.user}`);
+    const userId = req.user.id!;
     const updatedUser = await this.usersService.addFcmToken(userId, updateFcmTokenDto.fcmToken);
     return { message: 'FCM token updated successfully.', fcmTokens: updatedUser?.fcmTokens };
   }
@@ -67,8 +80,8 @@ export class UsersController {
     @Request() req: { user: JwtPayload },
     @Body() updateFcmTokenDto: UpdateFcmTokenDto,
   ) {
-    this.logger.debug(`Removing FCM token for user ${req.user.sub}`);
-    const userId = req.user.sub!;
+    this.logger.debug(`Removing FCM token for user ${req.user.id}`);
+    const userId = req.user.id!;
     const updatedUser = await this.usersService.removeFcmToken(userId, updateFcmTokenDto.fcmToken);
     return { message: 'FCM token removed successfully.', fcmTokens: updatedUser?.fcmTokens };
   }

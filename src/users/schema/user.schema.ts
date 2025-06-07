@@ -1,6 +1,7 @@
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 import { Document, HydratedDocument, Types } from "mongoose";
 import { Role } from "src/common/enums/role.enum";
+import { SportClub } from "src/sport-club/sport-club.schema";
 
 export type UserDocument = HydratedDocument<User>;
 @Schema({ timestamps: true })
@@ -13,8 +14,8 @@ export class User extends Document {
     @Prop() phoneNumber: string;
     @Prop() password: string;
     @Prop({ type: [{ type: Types.ObjectId, ref: 'SportClub' }] })
-    ownedClubs: [Types.ObjectId];
-    @Prop({type:Object})
+    ownedClubs: Types.ObjectId[] | SportClub[];
+    @Prop({ type: Object })
     address: {
         street: { type: String },
         city: { type: String, required: true }, // Index for city searches

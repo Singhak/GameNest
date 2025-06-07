@@ -1,4 +1,4 @@
-import { IsArray, IsDateString, IsNotEmpty, IsObject, IsOptional, IsString } from "class-validator";
+import { IsArray, IsDateString, IsNotEmpty, IsObject, IsOptional, IsString, MaxLength } from "class-validator";
 import { Role } from "src/common/enums/role.enum";
 
 export class CreateUserDto {
@@ -6,7 +6,7 @@ export class CreateUserDto {
     @IsString() @IsOptional() email: string;
     @IsArray() @IsNotEmpty() roles: Role[];
     @IsString() @IsOptional() provider?: string;
-    @IsString() @IsOptional() name?: string;
+    @IsString() @IsOptional() @MaxLength(100) name?: string;
     @IsString() @IsOptional() phoneNumber?: string;
     @IsString() @IsOptional() password?: string;
     @IsArray() @IsOptional()
