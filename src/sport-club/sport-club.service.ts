@@ -4,6 +4,8 @@ import { Model } from 'mongoose';
 import { SportClub } from './sport-club.schema';
 import { CreateClubDto } from './dtos/create-club.dto';
 import { UsersService } from 'src/users/users.service';
+import { use } from 'passport';
+import { Role } from 'src/common/enums/role.enum';
 
 
 @Injectable()
@@ -41,10 +43,14 @@ export class SportClubService {
             this.logger.warn(`Owner user not found for club creation: ${ownerId}`);
             throw new NotFoundException('Please Register first then List your club')
         }
-        const newClub = await this.sportClubModel.create({ owner: ownerId, ...createClubDto })
-        const ownedClubs = user.ownedClubs;
-        ownedClubs.push(newClub.id);
-        await this.userService.updateUserById(ownerId, { ownedClubs })
+        const newClub = await this.sportClubModel.create({ owner: ownerId, ...createClubDto });
+        const ownedClubs = (user.ownedClubs || []).map((club: any) => typeof club === 'string' ? club : club.toString());
+        ownedClubs.push(newClub.id.toString());
+        const roles = user.roles || [];
+        if (!roles.includes(Role.Owner)) {
+            roles.push(Role.Owner);
+        }
+        await this.userService.updateUserById(ownerId, { ownedClubs, roles });
         return newClub;
     }
 
