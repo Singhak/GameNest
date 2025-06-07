@@ -23,8 +23,8 @@ export class BookingController {
     @Body() createBookingDto: CreateBookingDto,
   ) {
     // The customerId comes from the authenticated user's token
-    this.logger.log(`Received create booking request from user ${req.user.sub}`);
-    const customerId = req.user.sub; // Assuming 'sub' is the local MongoDB User ID
+    this.logger.log(`Received create booking request from user ${req.user.id}`);
+    const customerId = req.user.id; // Assuming 'sub' is the local MongoDB User ID
     const booking = await this.bookingService.createBooking(customerId, createBookingDto);
     return {
       message: 'Booking request submitted successfully. Awaiting club owner confirmation.',
@@ -41,7 +41,7 @@ export class BookingController {
     @Body() updateBookingDto: UpdateBookingDto,
     @Req() req: { user: JwtPayload }, // To get the current user
   ) {
-    this.logger.log(`Received update booking request for ID ${bookingId} from user ${req.user.sub}`);
+    this.logger.log(`Received update booking request for ID ${bookingId} from user ${req.user.id}`);
     // const currentUser = req.user.sub;  // Cast to User type (ensure this matches your JWT payload structure)
     return this.bookingService.updateBooking(bookingId, updateBookingDto, req.user);
   }

@@ -225,7 +225,7 @@ export class BookingService {
         updateBookingDto: UpdateBookingDto,
         currentUser: JwtPayload, // Assuming User object from JWT
     ): Promise<Booking> {
-        const currentUserId = currentUser.sub;
+        const currentUserId = currentUser.id;
         this.logger.log(`Attempting to update booking ${bookingId} by user ${currentUser}`);
         const bookingObjectId = new Types.ObjectId(bookingId);
         const booking = await this.bookingModel.findById(bookingObjectId)
