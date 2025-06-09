@@ -156,4 +156,9 @@ export class UsersService {
         user.fcmTokens = user.fcmTokens.filter(token => !tokensToRemove.includes(token));
         return this.updateUserById(userId, { fcmTokens: user.fcmTokens });
     }
+
+    async findClubOwners(clubId: string): Promise<User[]> {
+        this.logger.debug(`Finding club owners for club ${clubId}`);
+        return this.userModel.find({ ownedClubs: clubId, roles: Role.Owner }).exec();
+    }
 }
