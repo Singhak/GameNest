@@ -32,6 +32,6 @@ export class SportServiceService {
     }
 
     async findById(id: string) {
-        return this.sportServiceModel.findById(id).populate('club').lean().exec();
+        return this.sportServiceModel.findById(id).lean().exec();
     }
 }
