@@ -185,9 +185,9 @@ export class BookingService {
         const totalPrice = service.hourlyPrice * durationHours;
 
         // 5. Create Booking Document
-        const newBooking = new this.bookingModel({
+        const newBooking = {
             customer: new Types.ObjectId(customerId),
-            club: club.id, // Use the actual club ID
+            club: club, // Use the actual club ID
             service: new Types.ObjectId(serviceId),
             bookingDate: bookingMomentDate.toDate(), // Store as ISODate in MongoDB
             startTime: startTime,
@@ -197,9 +197,9 @@ export class BookingService {
             status: BookingStatus.Pending, // Default status upon creation
             paymentStatus: 'pending', // Assume payment is pending at creation
             notes: notes,
-        });
+        };
 
-        const createdBooking = await newBooking.save();
+        const createdBooking = await this.bookingModel.create(newBooking);
         this.logger.log(`Booking created successfully with ID: ${createdBooking.id}`);
 
         // 6. Trigger Notification to Club Owner
