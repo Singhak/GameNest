@@ -13,7 +13,7 @@ import { PromotionTargetAudience, SendPromotionalNotificationDto } from './dtos/
 import { BookingService } from 'src/booking/booking.service';
 import { BookingCreatedEvent, BookingStatusUpdatedEvent } from 'src/booking/booking.events'; // Import event classes
 import { BookingStatus } from 'src/common/enums/booking-status.enum';
-import moment from 'moment-timezone';
+import * as moment from 'moment-timezone';
 
 @Injectable()
 export class NotificationService {
@@ -139,7 +139,7 @@ export class NotificationService {
             if (!user || !user.uid || !user.fcmTokens || user.fcmTokens.length === 0) {
                 this.logger.warn(`No Firebase UID or FCM tokens found for user ${recipientLocalId}. Push notification not sent.`);
                 if (notificationDbId) {
-                    await this._updatePushNotificationStatus(notificationDbId, 'failed', 'No FCM tokens or Firebase UID found.');
+                    await this._updatePushNotificationStatus(notificationDbId, 'failed', 'No FCM tokens or Firebase UID found.', true);
                 }
                 return;
             }
@@ -149,7 +149,7 @@ export class NotificationService {
             if (validTokens.length === 0) {
                 this.logger.warn(`No valid FCM tokens for user ${recipientLocalId} after filtering. Push notification not sent.`);
                 if (notificationDbId) {
-                    await this._updatePushNotificationStatus(notificationDbId, 'failed', 'No valid FCM tokens after filtering.');
+                    await this._updatePushNotificationStatus(notificationDbId, 'failed', 'No valid FCM tokens after filtering.', true);
                 }
                 return;
             }
@@ -297,22 +297,18 @@ export class NotificationService {
         const { booking, service } = payload;
         // 6. Trigger Notification to Club Owner
         // Fetch club owner's Firebase UID for push notification
-        const clubOwner = await this.usersService.findById(booking.club.toString());
-        if (clubOwner && clubOwner.uid) {
-            await this.sendPushNotification(
-                clubOwner.uid,
-                'New Booking Request!',
-                `A new booking for ${service?.name} on ${booking.bookingDate} from ${booking.startTime} to ${booking.endTime} needs your review.`,
-                { bookingId: booking.id, type: 'new_booking' }
-            );
-
-            // Also create an in-app notification
+        const clubOwners = await this.usersService.findClubOwners(booking.club.toString()); // booking.club should be the club's ID string
+        if (clubOwners.length > 0) { // If any owner is found
+            const clubOwner = clubOwners[0];
+            // Create an in-app notification, which will also trigger the push notification
             await this.createNotification(
                 clubOwner.id,
                 'New Booking Request!',
                 `New booking for ${service?.name} (${moment(booking.bookingDate).format('MMM D')}, ${booking.startTime}-${booking.endTime}).`,
                 NotificationType.BookingPending,
-                booking.id
+                booking.id, // relatedEntityId
+                'Booking',    // relatedEntityType
+                { bookingId: booking.id.toString(), type: 'new_booking', href: '/dashboard/owner' } // pushData
             );
         }
     }
@@ -346,28 +342,32 @@ export class NotificationService {
         }
 
         let recipientId: string | Types.ObjectId | undefined;
+        const extras: Record<string, any> = {};
         let title: string = '';
         let message: string = '';
-    let notificationType: NotificationType | undefined;
+        let notificationType: NotificationType | undefined;
 
         switch (newStatus) {
             case BookingStatus.Confirmed:
                 recipientId = customer.id;
                 title = 'Booking Confirmed!';
                 message = `Your booking for ${service.name} on ${moment(booking.bookingDate).format('MMM D, YYYY')} at ${booking.startTime} has been confirmed.`;
-            notificationType = NotificationType.BookingConfirmed;
+                notificationType = NotificationType.BookingConfirmed;
+                extras['href'] = '/dashboard/user'
                 break;
             case BookingStatus.CancelledByClub:
-            recipientId = customer.id; // Notify customer
-            title = 'Booking Cancelled by Club';
-            message = `Your booking for ${service.name} on ${moment(booking.bookingDate).format('MMM D, YYYY')} at ${booking.startTime} has been cancelled by the club.`;
-            notificationType = NotificationType.BookingCancelled; // Or a more specific type if you add one
+                recipientId = customer.id; // Notify customer
+                title = 'Booking Cancelled by Club';
+                message = `Your booking for ${service.name} on ${moment(booking.bookingDate).format('MMM D, YYYY')} at ${booking.startTime} has been cancelled by the club.`;
+                notificationType = NotificationType.BookingCancelled; // Or a more specific type if you add one
+                extras['href'] = '/dashboard/user'
                 break;
             case BookingStatus.CancelledByCustomer:
-            recipientId = club.owner; // Notify club owner
+                recipientId = club.owner; // Notify club owner
                 title = 'Booking Cancelled';
-            message = `The booking by ${customer.email} for ${service.name} on ${moment(booking.bookingDate).format('MMM D, YYYY')} at ${booking.startTime} has been cancelled by the customer.`;
-            notificationType = NotificationType.BookingCancelled; // Or a more specific type
+                message = `The booking by ${customer.email} for ${service.name} on ${moment(booking.bookingDate).format('MMM D, YYYY')} at ${booking.startTime} has been cancelled by the customer.`;
+                notificationType = NotificationType.BookingCancelled; // Or a more specific type
+                extras['href'] = '/dashboard/owner'
                 break;
             // Add more cases for other statuses like 'completed', 'no_show' if needed
             // For example, if BookingStatus.Pending should also create a notification:
@@ -380,7 +380,7 @@ export class NotificationService {
         }
 
         if (recipientId && title && message && notificationType) {
-            await this.createNotification(recipientId, title, message, notificationType, booking.id, 'Booking');
+            await this.createNotification(recipientId, title, message, notificationType, booking.id, 'Booking', extras);
         }
     }
     /**
@@ -447,7 +447,7 @@ export class NotificationService {
     }
 
     // This will run every 5 minutes (adjust as needed)
-    @Cron(CronExpression.EVERY_10_MINUTES)
+    @Cron(CronExpression.EVERY_30_MINUTES)
     async handleCron() {
         this.logger.debug('Cron job triggered for processing failed push notifications.');
 
