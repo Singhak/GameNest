@@ -20,9 +20,12 @@ export class UsersService {
      * @param firebaseUid The Firebase UID of the user.
      * @returns The user object or undefined if not found.
      */
-    async findByFirebaseUid(firebaseUid: string): Promise<User | null> {
+     async findByFirebaseUid(firebaseUid: string): Promise<User | null> {
         this.logger.debug(`Finding user by Firebase UID: ${firebaseUid}`);
-        return this.userModel.findOne({ uid: firebaseUid }).exec();
+        return this.userModel
+            .findOne({ uid: firebaseUid })
+            .select('-refreshTokens -updatedAt -__v -fcmTokens') // Exclude specified fields
+            .exec();
     }
 
     /**
