@@ -37,6 +37,26 @@ export class NotificationController {
         );
     }
 
+    @Get('weekly')
+    @HttpCode(HttpStatus.OK)
+    async getMyWeeklyNotifications(
+        @Req() req: { user: JwtPayload },
+        @Query('limit') limit: string = '20',
+        @Query('skip') skip: string = '0',
+    ) {
+        this.logger.debug(`Fetching weekly notifications for user ${req.user.id}. Query: limit=${limit}, skip=${skip}`);
+        const userId = req.user.id;
+
+        return this.notificationService.getWeeklyNotificationsForUser(
+            userId,
+            parseInt(limit, 10),
+            parseInt(skip, 10),
+        );
+    }
+
+
+
+
     @Post('mark-read')
     @HttpCode(HttpStatus.NO_CONTENT) // 204 No Content for successful update without returning data
     async markSelectedNotificationsAsRead(

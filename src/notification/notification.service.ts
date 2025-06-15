@@ -410,6 +410,32 @@ export class NotificationService {
     }
 
     /**
+     * Fetches a user's notifications from the past week from the database.
+     * @param userId The ID of the user whose notifications to retrieve.
+     * @param limit (Optional) Maximum number of notifications to return.
+     * @param skip (Optional) Number of notifications to skip for pagination.
+     * @returns An array of Notification documents.
+     */
+    async getWeeklyNotificationsForUser(
+        userId: string,
+        limit: number = 20,
+        skip: number = 0,
+    ): Promise<Notification[]> {
+        const oneWeekAgo = moment().subtract(7, 'days').toDate();
+        const query: any = {
+            recipient: new Types.ObjectId(userId),
+            createdAt: { $gte: oneWeekAgo },
+        };
+
+        return this.notificationModel.find(query)
+            .sort({ createdAt: -1 }) // Sort by latest first
+            .skip(skip)
+            // .limit(limit)
+            .exec();
+    }
+
+
+    /**
      * Marks specific notifications as read.
      * @param notificationIds An array of notification IDs to mark as read.
      * @param userId The ID of the user performing the action (for security/ownership verification).
