@@ -9,7 +9,6 @@ import { JwtPayload } // Assuming JwtPayload is defined in your auth module, e.g
     from 'src/auth/strategies/jwt.strategy'; // Or wherever your JwtPayload is defined
 
 @Controller('clubs')
-@UseGuards(JwtAuthGuard, RolesGuard)
 export class SportClubController {
     private readonly logger = new Logger(SportClubController.name);
 
@@ -30,6 +29,7 @@ export class SportClubController {
 
     // Renamed and specified path to avoid conflict
     @Get('my-owned')
+    @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(Role.Owner) // Only users with Owner role can get their owned clubs
     async getMyOwnedClubs(@Request() req: { user: JwtPayload }) {
         const ownerId = req.user.id; // Assuming 'id' is the MongoDB user ID from JWT
@@ -48,6 +48,7 @@ export class SportClubController {
     }
 
     @Get('owner/:ownerId')
+    @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(Role.User, Role.Admin, Role.Editor, Role.Owner) // Any authenticated user can view a specific club
     async findByOwnerId(@Param('ownerId') id: string) {
         this.logger.debug(`Received request to find club by Owner ID: ${id}`);
@@ -55,6 +56,7 @@ export class SportClubController {
     }
 
     @Post()
+    @UseGuards(JwtAuthGuard, RolesGuard)    
     @HttpCode(HttpStatus.CREATED)
     @Roles(Role.User, Role.Admin, Role.Owner) // Users, Admins, or existing Owners can create clubs
     async create(@Request() req: { user: JwtPayload }, @Body() createClubDto: CreateClubDto) {
@@ -67,6 +69,7 @@ export class SportClubController {
     }
 
     @Delete(':clubId')
+    @UseGuards(JwtAuthGuard, RolesGuard)
     @HttpCode(HttpStatus.NO_CONTENT)
     @Roles(Role.Owner, Role.Admin) // Only Owners (of that specific club) or Admins can delete
     async deleteOwnedClub(@Request() req: { user: JwtPayload }, @Param('clubId') clubId: string) {

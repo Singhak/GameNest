@@ -11,7 +11,8 @@ import { UsersModule } from 'src/users/users.module';
     forwardRef(() => UsersModule),
   ],
   providers: [SportClubService],
-  controllers: [SportClubController]
+  controllers: [SportClubController],
+  exports:[SportClubService]
 })
 export class SportClubModule {
   
