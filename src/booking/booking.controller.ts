@@ -1,5 +1,5 @@
 // src/booking/booking.controller.ts
-import { Controller, Post, Body, Req, UseGuards, HttpCode, HttpStatus, Logger, Param } from '@nestjs/common';
+import { Controller, Post, Body, Req, UseGuards, HttpCode, HttpStatus, Logger, Param, BadRequestException, Get } from '@nestjs/common';
 import { BookingService } from './booking.service'; // Corrected import path
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -8,15 +8,17 @@ import { Role } from '../common/enums/role.enum';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { CreateBookingDto } from './dtos/create-booking.dto';
 import { UpdateBookingDto } from './dtos/update-booking.dto';
+import { Types } from 'mongoose'; // Keep Types import
+import { Booking } from './booking.schema';
 
 @Controller('bookings')
-@UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.User) // Only regular users (customers) can create bookings
 export class BookingController {
   private readonly logger = new Logger(BookingController.name);
-  constructor(private readonly bookingService: BookingService) {}
+  constructor(private readonly bookingService: BookingService) { }
 
   @Post()
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @HttpCode(HttpStatus.CREATED)
   async create(
     @Req() req: { user: JwtPayload }, // req.user will contain the customer's JWT payload
@@ -34,7 +36,7 @@ export class BookingController {
   }
 
   @Post(':id')
-  @UseGuards(JwtAuthGuard) // Ensure user is authenticated
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @HttpCode(HttpStatus.OK)
   async updateBooking(
     @Param('id') bookingId: string,
@@ -44,5 +46,41 @@ export class BookingController {
     this.logger.log(`Received update booking request for ID ${bookingId} from user ${req.user.id}`);
     // const currentUser = req.user.sub;  // Cast to User type (ensure this matches your JWT payload structure)
     return this.bookingService.updateBooking(bookingId, updateBookingDto, req.user);
+  }
+
+  /**
+     * Retrieves the status of a specific booking.
+     * @param bookingId The ID of the booking.
+     * @returns An object containing the booking status.
+     */
+  @Get(':id/status')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async getBookingStatus(@Param('id') bookingId: string): Promise<{ status: String }> {
+    this.logger.log(`Fetching status for booking ${bookingId}`);
+    if (!Types.ObjectId.isValid(bookingId)) {
+      throw new BadRequestException('Invalid booking ID format.');
+    }
+    const status = await this.bookingService.getBookingStatus(bookingId);
+    return { status };
+  }
+
+  /**
+   * Retrieves bookings for a specific service on a given date.
+   * Accessible by Admins or Owners of the club.
+   * @param serviceId The ID of the sport service.
+   * @param dateString The date in 'YYYY-MM-DD' format.
+   * @returns A list of bookings.
+   */
+  @Get('service/:serviceId/date/:dateString')
+  async getBookingsForServiceOnDate(
+    @Param('serviceId') serviceId: string,
+    @Param('dateString') dateString: string,
+  ): Promise<Booking[]> {
+    this.logger.log(`User requesting bookings for service ${serviceId} on ${dateString}`);
+    if (!Types.ObjectId.isValid(serviceId)) {
+      throw new BadRequestException('Invalid service ID format.');
+    }
+    // Date format validation (e.g., YYYY-MM-DD) is handled in the service or can be added via a pipe.
+    return this.bookingService.getBookingsByServiceAndDate(serviceId, dateString);
   }
 }

@@ -18,6 +18,7 @@ import { SportServiceModule } from 'src/sport-service/sport-service.module';
     forwardRef(() => NotificationModule), 
     forwardRef(() => UsersModule), 
     forwardRef(() => SportServiceModule), 
+    forwardRef(() => SportClubModule),
   ],
   controllers: [BookingController],
   providers: [BookingService],

@@ -13,6 +13,7 @@ import { Role } from 'src/common/enums/role.enum';
 import { UpdateBookingDto } from './dtos/update-booking.dto';
 import { BookingStatus } from 'src/common/enums/booking-status.enum';
 import { JwtPayload } from 'src/auth/strategies/jwt.strategy';
+import { SportClubService } from 'src/sport-club/sport-club.service';
 @Injectable()
 export class BookingService {
     private readonly APP_TIMEZONE = 'Asia/Kolkata'; // Or load from config
@@ -22,6 +23,7 @@ export class BookingService {
         private eventEmitter: EventEmitter2, // Inject EventEmitter2
         @InjectModel(Booking.name) private bookingModel: Model<BookingDocument>,
         private readonly sportService: SportServiceService,
+        private readonly sportClubService: SportClubService,
     ) { }
 
     async getAvailableSlots(serviceId: string, dateString: string, timezone: string = 'Asia/Kolkata'): Promise<string[]> {
@@ -309,5 +311,65 @@ export class BookingService {
         }
 
         return updatedBooking;
+    }
+
+    /**
+     * Retrieves the status of a specific booking.
+     * @param bookingId The ID of the booking.
+     * @returns The status string of the booking.
+     * @throws NotFoundException if the booking is not found.
+     */
+    async getBookingStatus(bookingId: string): Promise<String> {
+        this.logger.log(`Fetching status for booking ID: ${bookingId}`);
+        const bookingObjectId = new Types.ObjectId(bookingId);
+        const booking = await this.bookingModel.findById(bookingObjectId).select('status').lean().exec();
+        if (!booking) {
+            throw new NotFoundException(`Booking with ID ${bookingId} not found.`);
+        }
+        return booking.status;
+    }
+
+    /**
+     * Retrieves bookings for a specific service on a given date.
+     * Only accessible by Admins or the Owner of the club to which the service belongs.
+     * @param serviceId The ID of the sport service.
+     * @param dateString The date string in 'YYYY-MM-DD' format.
+     * @param currentUser The JWT payload of the authenticated user.
+     * @returns A list of booking documents.
+     */
+    async getBookingsByServiceAndDate(
+        serviceId: string,
+        dateString: string,
+    ): Promise<Booking[]> {
+        this.logger.log(`Fetching bookings for service ${serviceId} on date ${dateString} by user`);
+
+        // 1. Fetch Service and Validate Ownership/Admin Role
+        const service = await this.sportService.findById(serviceId);
+        if (!service) {
+            throw new NotFoundException(`Service with ID ${serviceId} not found.`);
+        }
+        if (!service.club) { // service.club is an ObjectId here
+            throw new NotFoundException('Service is not associated with a club.');
+        }
+
+        const club = await this.sportClubService.findClubById(service.club.toString());
+        if (!club) {
+            throw new NotFoundException(`Club associated with service ${serviceId} not found.`);
+        }
+
+        // 2. Parse Date and Define Range
+        const targetDate = moment.tz(dateString, 'YYYY-MM-DD', this.APP_TIMEZONE);
+        if (!targetDate.isValid()) {
+            throw new BadRequestException('Invalid date format. Please use YYYY-MM-DD.');
+        }
+        const startDate = targetDate.startOf('day').toDate();
+        const endDate = targetDate.endOf('day').toDate();
+
+        // 3. Query Bookings
+        return this.bookingModel.find({
+            service: new Types.ObjectId(serviceId),
+            bookingDate: { $gte: startDate, $lte: endDate },
+            status: { $nin: [BookingStatus.CancelledByClub, BookingStatus.CancelledByCustomer, BookingStatus.Rejected] }
+        }).sort({ startTime: 'asc' }).lean().exec();
     }
 }
