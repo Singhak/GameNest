@@ -25,4 +25,7 @@ export class CreateUserDto {
         deviceId?: string; // Optional: Unique ID for the device/session (e.g., generated client-side UUID, or user-agent derived hash)
         issuedAt: Date;    // When this specific refresh token was issued
     }[]; // Can store multiple tokens per device
+    @IsString()
+    @IsOptional()
+    currentLocation?: string
 }
