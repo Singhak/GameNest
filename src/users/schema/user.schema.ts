@@ -31,6 +31,8 @@ export class User extends Document {
     }[]; // Can store multiple tokens per device
     @Prop({ default: [] })
     fcmTokens: string[]; // Firebase Cloud Messaging tokens for push notifications
+    @Prop()
+    currentLocation: string
 }
 
 export const UserSchema = SchemaFactory.createForClass(User)
