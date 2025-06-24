@@ -1,7 +1,8 @@
-import { Controller, Get, Post, Put, Param, Body} from '@nestjs/common';
+import { Controller, Get, Post, Put, Param, Body } from '@nestjs/common';
 import { SportServiceService } from './sport-service.service';
 import { CreateSportServiceDto } from './dtos/create-sport-dto';
 import { UpdateSportServiceDto } from './dtos/update-sport-dto';
+import { Types } from 'mongoose';
 
 @Controller('services')
 export class SportServiceController {
@@ -24,6 +25,10 @@ export class SportServiceController {
 
     @Post()
     async create(@Body() createSportServiceDto: CreateSportServiceDto) {
+        const clubId = createSportServiceDto.club;
+        if (Types.ObjectId.isValid(clubId)) {
+            createSportServiceDto.club = new Types.ObjectId(clubId);
+        }
         return this.sportService.addSport(createSportServiceDto);
     }
 

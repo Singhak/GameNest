@@ -1,12 +1,13 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
+import { SportClub } from 'src/sport-club/sport-club.schema';
 
 export type SportServiceDocument = HydratedDocument<SportService>;
 
 @Schema({ timestamps: true })
 export class SportService {
     @Prop({ type: Types.ObjectId, ref: 'SportClub', required: true, index: true })
-    club: Types.ObjectId; // Link to the parent club
+    club: Types.ObjectId | SportClub; // Link to the parent club
     @Prop({ required: true })
     name: string; // E.g., "Badminton Court 1", "Table Tennis Arena 2"
     @Prop({ required: true, index: true })

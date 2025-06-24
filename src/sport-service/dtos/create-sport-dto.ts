@@ -1,9 +1,10 @@
-import { IsArray, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString } from "class-validator";
+import { IsArray, IsEnum, IsMongoId, IsNotEmpty, IsNumber, IsOptional, IsString } from "class-validator";
+import { Types } from "mongoose";
 
 export class CreateSportServiceDto {
-    @IsString()
+    @IsMongoId()
     @IsNotEmpty()
-    club: string // Club ID where this service is offered
+    club: Types.ObjectId // Club ID where this service is offered
     @IsString()
     @IsNotEmpty()
     name: String; // E.g., "Badminton Court 1", "Table Tennis Arena 2"
