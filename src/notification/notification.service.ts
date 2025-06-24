@@ -14,6 +14,7 @@ import { BookingService } from 'src/booking/booking.service';
 import { BookingCreatedEvent, BookingStatusUpdatedEvent } from 'src/booking/booking.events'; // Import event classes
 import { BookingStatus } from 'src/common/enums/booking-status.enum';
 import * as moment from 'moment-timezone';
+import { SportClubUpdatedEvent } from 'src/sport-club/sport-club.events';
 
 @Injectable()
 export class NotificationService {
@@ -612,4 +613,87 @@ export class NotificationService {
         };
     }
 
+    /**
+   * Sends a notification to specified users about a club data change.
+   * @param userIds - Array of user IDs (local DB IDs) to notify.
+   * @param clubId - The ID of the club that was updated.
+   * @param clubName - The name of the club.
+   * @param notificationTitle - The title of the notification.
+   * @param notificationBody - The body/message of the notification.
+   */
+    async sendClubUpdateNotification(
+        city: string,
+        clubId: string,
+        clubName: string,
+        notificationTitle: string,
+        notificationBody: string,
+    ): Promise<void> {
+        const userList = await this.usersService.findByQuery({ currentLocation: city })
+        if (!userList || userList.length === 0) {
+            this.logger.log('No user IDs provided for club update notification.');
+            return;
+        }
+
+        const fcmTokens: string[] = [];
+        for (const user of userList) {
+            if (user && user.fcmTokens && user.fcmTokens.length > 0) {
+                fcmTokens.push(...user.fcmTokens);
+            } else {
+                this.logger.warn(`User ${user.id} has no FCM tokens or was not found, skipping for club update notification.`);
+            }
+        }
+
+        if (fcmTokens.length === 0) {
+            this.logger.log(`No FCM tokens found for the provided user IDs for club ${clubName} (ID: ${clubId}).`);
+            return;
+        }
+
+        const uniqueFcmTokens = [...new Set(fcmTokens)]; // Ensure unique tokens
+
+        const message: admin.messaging.MulticastMessage = {
+            notification: {
+                title: notificationTitle,
+                body: notificationBody,
+            },
+            data: {
+                clubId: clubId,
+                clubName: clubName,
+                type: 'CLUB_DATA_UPDATED', // Custom data to help client app handle notification
+            },
+            tokens: uniqueFcmTokens,
+        };
+
+        try {
+            const response = await this.firebaseService.getAdmin().messaging().sendEachForMulticast(message);
+            this.logger.log(`Successfully sent club update notification to ${response.successCount} device(s) for club "${clubName}" (ID: ${clubId}).`);
+            if (response.failureCount > 0) {
+                this.logger.warn(`Failed to send club update notification to ${response.failureCount} device(s) for club "${clubName}" (ID: ${clubId}).`);
+                response.responses.forEach((resp, idx) => {
+                    if (!resp.success) {
+                        this.logger.error(`Error sending to token ${uniqueFcmTokens[idx]}: ${resp.error?.code} - ${resp.error?.message}`);
+                        // Consider implementing logic to handle/remove invalid tokens based on error codes like 'messaging/registration-token-not-registered'
+                    }
+                });
+            }
+        } catch (error) {
+            this.logger.error(`Error sending club update multicast message for club "${clubName}" (ID: ${clubId}):`, error);
+        }
+    }
+
+    /**
+     * Event listener for booking status updates.
+     * Can trigger notifications based on the new status.
+     */
+    @OnEvent('club.updated')
+    async handleClubUpdatedEvent(payload: SportClubUpdatedEvent) {
+        const { sportClub } = payload
+        this.logger.debug(`Handling booking.status_updated event for booking ${sportClub.name}.`);
+        await this.sendClubUpdateNotification(
+            sportClub.address.city?.toString(), // Ensure city is a string
+            sportClub.id,
+            sportClub.name,
+            `Club Update: ${sportClub.name}`,
+            `The details for ${sportClub.name} have been updated. Check them out!`
+        );
+    }
 }

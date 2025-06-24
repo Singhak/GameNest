@@ -4,14 +4,15 @@ import { Model } from 'mongoose';
 import { SportClub } from './sport-club.schema';
 import { CreateClubDto } from './dtos/create-club.dto';
 import { UsersService } from 'src/users/users.service';
-import { use } from 'passport';
 import { Role } from 'src/common/enums/role.enum';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { SportClubUpdatedEvent } from './sport-club.events';
 
 
 @Injectable()
 export class SportClubService {
 
-    constructor(@InjectModel(SportClub.name) private sportClubModel: Model<SportClub>, private userService: UsersService) { }
+    constructor(@InjectModel(SportClub.name) private sportClubModel: Model<SportClub>, private userService: UsersService, private eventEmitter: EventEmitter2,) { }
 
     private readonly logger = new Logger(SportClubService.name);
 
@@ -41,7 +42,7 @@ export class SportClubService {
         const user = await this.userService.findById(ownerId);
         if (!user) {
             this.logger.warn(`Owner user not found for club creation: ${ownerId}`);
-            throw new NotFoundException('Please Register first then List your club')
+            throw new NotFoundException('Owner user not found. Please register first then list your club.');
         }
         const newClub = await this.sportClubModel.create({ owner: ownerId, ...createClubDto });
         const ownedClubs = (user.ownedClubs || []).map((club: any) => typeof club === 'string' ? club : club.toString());
@@ -51,7 +52,38 @@ export class SportClubService {
             roles.push(Role.Owner);
         }
         await this.userService.updateUserById(ownerId, { ownedClubs, roles });
+        this.eventEmitter.emit('club.update', new SportClubUpdatedEvent(newClub));
+
         return newClub;
+    }
+
+    /**
+    * Updates club information for a specific club owned by the user.
+    * @param clubId The ID of the club to update.
+    * @param ownerId The ID of the user owning the club.
+    * @param updateData The data to update the club with.
+    * @returns The updated sport club document.
+    * @throws NotFoundException if the club is not found or not owned by the user.
+    */
+    async updateClubInfo(clubId: string, ownerId: string, updateData: Partial<CreateClubDto>): Promise<SportClub | null> {
+        this.logger.log(`Attempting to update club ${clubId} by owner ${ownerId}`);
+
+        const updatedClub = await this.sportClubModel.findOneAndUpdate(
+            { _id: clubId, owner: ownerId, isDeleted: false }, // Ensure club is not deleted
+            { $set: updateData },
+            { new: true }
+        ).exec();
+
+        if (!updatedClub) {
+            this.logger.warn(`Club ${clubId} not found or not owned by ${ownerId}, or it is deleted.`);
+            throw new NotFoundException(`Club not found or you don't have permission to update it.`);
+        }
+
+        this.logger.log(`Club ${clubId} updated successfully by owner ${ownerId}`);
+
+        // Send notification about the club update
+        this.eventEmitter.emit('club.update', new SportClubUpdatedEvent(updatedClub));
+        return updatedClub;
     }
 
     async deleteOwnedClub(owerId: string, clubId: string): Promise<SportClub | null> {

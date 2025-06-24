@@ -4,11 +4,13 @@ import { SportClubController } from './sport-club.controller';
 import { MongooseModule } from '@nestjs/mongoose';
 import { SportClub, SportClubSchema } from './sport-club.schema';
 import { UsersModule } from 'src/users/users.module';
+import { NotificationModule } from 'src/notification/notification.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: SportClub.name, schema: SportClubSchema }]),
     forwardRef(() => UsersModule),
+    forwardRef(() => NotificationModule), // Added NotificationModule
   ],
   providers: [SportClubService],
   controllers: [SportClubController],
