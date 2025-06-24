@@ -104,7 +104,11 @@ export class BookingService {
    * @throws NotFoundException if service is not found or inactive.
    * @throws ConflictException if the slot is already booked.
    */
-    async createBooking(customerId: string, createBookingDto: CreateBookingDto): Promise<Booking> {
+    async createBooking(
+        customerId: string,
+        createBookingDto: CreateBookingDto,
+        initialStatus: BookingStatus = BookingStatus.Pending // Allow overriding initial status
+    ): Promise<Booking> {
         const { serviceId, bookingDate, startTime, endTime, notes } = createBookingDto;
         this.logger.log(`Attempting to create booking for customer ${customerId}, service ${serviceId} on ${bookingDate} ${startTime}-${endTime}`);
 
@@ -196,9 +200,10 @@ export class BookingService {
             endTime: endTime,
             durationHours: durationHours,
             totalPrice: totalPrice,
-            status: BookingStatus.Pending, // Default status upon creation
+            status: initialStatus,  // Default status upon creation
             paymentStatus: 'pending', // Assume payment is pending at creation
             notes: notes,
+            rescheduleOf: createBookingDto.rescheduleOf || null,
         };
 
         const createdBooking = await this.bookingModel.create(newBooking);
@@ -234,6 +239,7 @@ export class BookingService {
             .populate('club')
             .populate('customer')
             .populate('service')
+            .populate('rescheduleOf') // Populate rescheduleOf if exists
             .exec()
 
         if (!booking) {
@@ -270,6 +276,26 @@ export class BookingService {
                     booking.status = newStatus;
                 } else if (newStatus === BookingStatus.CancelledByClub &&
                     (booking.status === BookingStatus.Pending || booking.status === BookingStatus.Confirmed)) {
+                    booking.status = newStatus;
+                } else if (newStatus === BookingStatus.Confirmed && booking.status === BookingStatus.ReschedulePending) {
+                    // Owner ACCEPTS reschedule request
+                    this.logger.log(`Owner is accepting reschedule request for booking ${bookingId}.`);
+                    if (booking.rescheduleOf) {
+                        await this.bookingModel.findByIdAndUpdate(booking.rescheduleOf, {
+                            status: BookingStatus.CancelledRescheduled
+                        });
+                        this.logger.log(`Original booking ${booking.rescheduleOf} status updated to 'cancelled_rescheduled'.`);
+                    }
+                    booking.status = newStatus;
+                } else if (newStatus === BookingStatus.Rejected && booking.status === BookingStatus.ReschedulePending) {
+                    // Owner REJECTS reschedule request
+                    this.logger.log(`Owner is rejecting reschedule request for booking ${bookingId}.`);
+                    if (booking.rescheduleOf) {
+                        await this.bookingModel.findByIdAndUpdate(booking.rescheduleOf, {
+                            status: BookingStatus.Confirmed // Revert original booking to confirmed
+                        });
+                        this.logger.log(`Original booking ${booking.rescheduleOf} status reverted to 'confirmed'.`);
+                    }
                     booking.status = newStatus;
                 } else if (newStatus === BookingStatus.Completed && booking.status === BookingStatus.Confirmed) {
                     // Potentially automated or manual completion
@@ -371,5 +397,137 @@ export class BookingService {
             bookingDate: { $gte: startDate, $lte: endDate },
             status: { $nin: [BookingStatus.CancelledByClub, BookingStatus.CancelledByCustomer, BookingStatus.Rejected] }
         }).sort({ startTime: 'asc' }).lean().exec();
+    }
+
+    /**
+ * Retrieves bookings for a specific user (customer).
+ * @param customerId The ID of the customer.
+ * @param status (Optional) Filter bookings by status.
+ * @param limit (Optional) Limit the number of results.
+ * @param skip (Optional) Skip results for pagination.
+ * @returns A list of booking documents.
+ */
+    async getBookingsForUser(
+        customerId: string,
+        status?: BookingStatus,
+        limit: number = 10,
+        skip: number = 0,
+    ): Promise<Booking[]> {
+        this.logger.log(`Fetching bookings for user ${customerId}, status: ${status}, limit: ${limit}, skip: ${skip}`);
+        const query: any = { customer: new Types.ObjectId(customerId) };
+
+        if (status) {
+            query.status = status;
+        }
+
+        return this.bookingModel.find(query)
+            // .populate('club', 'name address images') // Populate club with specific fields
+            // .populate('service', 'name description pricePerHour') // Populate service with specific fields
+            .sort({ bookingDate: -1, startTime: -1 }) // Sort by most recent
+            .limit(limit)
+            .skip(skip)
+            .lean()
+            .exec();
+    }
+
+    /**
+     * Retrieves bookings for a specific club, accessible by the club owner or an admin.
+     * @param clubId The ID of the sport club.
+     * @param currentUser The JWT payload of the authenticated user.
+     * @param status (Optional) Filter bookings by status.
+     * @param limit (Optional) Limit the number of results.
+     * @param skip (Optional) Skip results for pagination.
+     * @returns A list of booking documents.
+     */
+    async getBookingsForClubByOwner(
+        clubId: string,
+        currentUser: JwtPayload,
+        status?: BookingStatus,
+        limit: number = 0,
+        skip: number = 0,
+    ): Promise<Booking[]> {
+        this.logger.log(`Fetching bookings for club ${clubId} by user ${currentUser.id}. Status: ${status}, Limit: ${limit}, Skip: ${skip}`);
+
+        const clubObjectId = new Types.ObjectId(clubId);
+
+        // 1. Fetch Club and Validate Ownership/Admin Role
+        const club = await this.sportClubService.findClubById(clubId);
+        if (!club) {
+            throw new NotFoundException(`Club with ID ${clubId} not found.`);
+        }
+
+        const isOwner = club.owner && club.owner.toString() === currentUser.id;
+        // const isAdmin = currentUser.roles.includes(Role.Admin);
+
+        if (!isOwner) {
+            this.logger.warn(`User ${currentUser.id} is not authorized to access bookings for club ${clubId}.`);
+            throw new ForbiddenException('You are not authorized to access bookings for this club.');
+        }
+
+        // 2. Construct Query
+        const query: any = { club: clubObjectId };
+        if (status) {
+            query.status = status;
+        }
+
+        // 3. Execute Query
+        return this.bookingModel.find(query)
+            .populate('customer', 'email name phoneNumber uid') // Populate customer with specific fields
+            .populate('service', 'name') // Populate service with specific fields
+            .populate('club', 'name') // Populate club with specific fields
+            .sort({ bookingDate: -1, startTime: -1 }) // Sort by most recent
+            .limit(limit)
+            .skip(skip)
+            .lean()
+            .exec();
+    }
+
+    /**
+  * Initiates a reschedule request from a customer.
+  * This creates a new 'reschedule_pending' booking and puts the original on hold.
+  * @param originalBookingId The ID of the booking to be rescheduled.
+  * @param rescheduleDto DTO with the new booking details.
+  * @param currentUser The user making the request.
+  * @returns The newly created 'reschedule_pending' booking.
+  */
+    async requestReschedule(
+        originalBookingId: string,
+        rescheduleDto: CreateBookingDto,
+        currentUser: JwtPayload,
+    ): Promise<Booking> {
+        this.logger.log(`User ${currentUser.id} requesting to reschedule booking ${originalBookingId}`);
+        const originalBooking = await this.bookingModel.findById(originalBookingId);
+
+        if (!originalBooking) {
+            throw new NotFoundException('Original booking not found.');
+        }
+
+        // Authorization: Ensure the current user is the customer of the original booking
+        if (originalBooking.customer.toString() !== currentUser.id) {
+            throw new ForbiddenException('You can only reschedule your own bookings.');
+        }
+
+        // Validation: Check if the original booking is in a state that can be rescheduled
+        if (![BookingStatus.Confirmed, BookingStatus.Pending].includes(originalBooking.status as BookingStatus)) {
+            throw new BadRequestException(`Booking with status '${originalBooking.status}' cannot be rescheduled.`);
+        }
+
+        // 1. Update original booking status to 'reschedule_requested' to put it on hold
+        const previousStatus = originalBooking.status;
+        originalBooking.status = BookingStatus.RescheduleRequested;
+        await originalBooking.save();
+
+        try {
+            // 2. Create the new 'reschedule_pending' booking
+            const newBookingDto: CreateBookingDto = { ...rescheduleDto, rescheduleOf: originalBooking.id };
+            const proposedBooking = await this.createBooking(currentUser.id, newBookingDto, BookingStatus.ReschedulePending);
+            return proposedBooking;
+        } catch (error) {
+            // Rollback: If creating the new booking fails, revert the original booking's status
+            this.logger.error(`Failed to create reschedule booking. Reverting original booking ${originalBookingId}. Error: ${error.message}`);
+            originalBooking.status = previousStatus;
+            await originalBooking.save();
+            throw error; // Re-throw the error from createBooking
+        }
     }
 }
