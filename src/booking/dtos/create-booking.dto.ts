@@ -1,5 +1,6 @@
 // src/booking/dto/create-booking.dto.ts
 import { IsString, IsNotEmpty, IsDateString, IsMongoId, Matches, IsOptional } from 'class-validator';
+import { Types } from 'mongoose';
 
 export class CreateBookingDto {
   @IsMongoId()
@@ -25,4 +26,8 @@ export class CreateBookingDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsOptional()
+  rescheduleOf?: Types.ObjectId;
+
 }
