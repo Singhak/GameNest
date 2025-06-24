@@ -8,6 +8,7 @@ import { LoginDto } from './dtos/login.dto';
 import { Role } from 'src/common/enums/role.enum';
 import { User } from 'src/users/schema/user.schema';
 import { RefreshTokenEntry } from 'src/users/dtos/refresh-token.dto';
+import { UpdateUserDto } from 'src/users/dtos/update-user.dto';
 
 @Injectable()
 export class AuthService {
@@ -27,7 +28,7 @@ export class AuthService {
    */
   async login(loginDto: LoginDto): Promise<{ accessToken: string, refreshToken: string }> {
     this.logger.log('Attempting user login...');
-    const { idToken } = loginDto;
+    const { idToken, currentLocation, clientInstanceId } = loginDto;
 
     if (!idToken) {
       throw new BadRequestException('Firebase ID token is required.');
@@ -42,22 +43,56 @@ export class AuthService {
 
       // 2. Check/create user in our local database
       // This is where you would interact with your actual database (e.g., MongoDB, PostgreSQL)
-      let user = await this.usersService.findByFirebaseUid(firebaseUid);
+      let user = await this.usersService.findOneByQuery({ uid: firebaseUid });
+      this.logger.debug(firebaseUid);
 
       if (!user) {
         // If user doesn't exist, create a new entry with a default role
         user = await this.usersService.createUser({
           uid: firebaseUid,
           email: email,
-          roles: [Role.User]
+          roles: [Role.User],
+          currentLocation
         });
         this.logger.log(`New user created in local DB: ${user.email} with UID: ${user.uid}`);
       } else {
-        // Optionally, update user details if they changed in Firebase
+        // For existing users, prepare updates and clean stale tokens
+        const updates: UpdateUserDto = {};
+
         if (user.email !== email) {
-          await this.usersService.updateUserById(user.id, { email: email });
-        } // Log this update?
-        this.logger.warn(`Existing user logged in: ${user.email} with UID: ${user.uid}`);
+          updates.email = email;
+        }
+        // Only update currentLocation if it's provided in the login DTO
+        if (currentLocation !== undefined) {
+          updates.currentLocation = currentLocation;
+        }
+
+        // Stale refresh token cleanup
+        if (user.refreshTokens && user.refreshTokens.length > 0) {
+          const now = new Date();
+          const initialTokenCount = user.refreshTokens.length;
+          let validRefreshTokens = user.refreshTokens.filter(rt => rt.expiresAt >= now);
+          const sameClientTokens = validRefreshTokens.filter(rt => rt.deviceId === clientInstanceId);
+          if (sameClientTokens.length) {
+            validRefreshTokens = validRefreshTokens.filter(rt => rt.deviceId !== clientInstanceId);
+            this.logger.log(`Removed ${ sameClientTokens.length} same Client Token`);
+          }
+
+          if (validRefreshTokens.length < initialTokenCount) {
+            this.logger.log(`Removed ${initialTokenCount - validRefreshTokens.length} stale refresh token(s) for user ${user.email}`);
+            updates.refreshTokens = validRefreshTokens;
+          }
+        }
+
+        if (Object.keys(updates).length > 0) {
+          const updatedUserDoc = await this.usersService.updateUserById(user.id, updates);
+          if (updatedUserDoc) {
+            user = updatedUserDoc; // Use the most up-to-date user document for JWT payload
+          }
+          this.logger.log(`Existing user ${user.email} (UID: ${user.uid}) updated with: ${Object.keys(updates).join(', ')} and logged in.`);
+        } else {
+          this.logger.log(`Existing user ${user.email} (UID: ${user.uid}) logged in. No stale tokens found or other details to update.`);
+        }
       }
 
       // 3. Generate a custom JWT containing essential user info and roles
@@ -85,7 +120,7 @@ export class AuthService {
         tokenHash: hashedRefreshToken,
         expiresAt: refreshTokenExpiresAt,
         issuedAt: issuedAt,
-        // deviceId: deviceId // Include deviceId if sent from client
+        deviceId: clientInstanceId // Include deviceId if sent from client
       });
 
       this.logger.log(`User ${user.email} logged in successfully. Issued tokens.`);
