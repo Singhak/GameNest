@@ -12,6 +12,7 @@ export class User extends Document {
     @Prop() provider: string;
     @Prop() name: string;
     @Prop() phoneNumber: string;
+    @Prop() whatsappNumber: string;
     @Prop() password: string;
     @Prop({ type: [{ type: Types.ObjectId, ref: 'SportClub' }] })
     ownedClubs: Types.ObjectId[] | SportClub[];
@@ -21,6 +22,7 @@ export class User extends Document {
         city: { type: String, required: true }, // Index for city searches
         state: { type: String, required: true },
         zipCode: { type: String, required: true }, // Index for zip code searches
+        country: { type: String, default:'India'}, 
     }
     @Prop({ default: [] })
     refreshTokens: {

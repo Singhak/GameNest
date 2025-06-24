@@ -20,7 +20,7 @@ export class UsersService {
      * @param firebaseUid The Firebase UID of the user.
      * @returns The user object or undefined if not found.
      */
-     async findByFirebaseUid(firebaseUid: string): Promise<User | null> {
+    async findByFirebaseUid(firebaseUid: string): Promise<User | null> {
         this.logger.debug(`Finding user by Firebase UID: ${firebaseUid}`);
         return this.userModel
             .findOne({ uid: firebaseUid })
@@ -36,6 +36,16 @@ export class UsersService {
     async findByQuery(query: any): Promise<User[]> {
         this.logger.debug(`Finding users by query: ${JSON.stringify(query)}`);
         return this.userModel.find(query).lean().exec();
+    }
+
+    /**
+     * 
+     * @param query 
+     * @returns The user object or undefined if not found
+     */
+    async findOneByQuery(query: any): Promise<User | null> {
+        this.logger.debug(`Finding users by query: ${JSON.stringify(query)}`);
+        return this.userModel.findOne(query).exec();
     }
 
 
@@ -67,7 +77,7 @@ export class UsersService {
      */
     async updateUserById(id: string, updateData: UpdateUserDto): Promise<User | null> {
         this.logger.debug(`Updating user by ID: ${id} with data: ${JSON.stringify(updateData)}`);
-        return this.userModel.findByIdAndUpdate(id, updateData, { new: true }).lean().exec();
+        return this.userModel.findByIdAndUpdate(id, updateData, { new: true }).exec();
     }
 
     /**

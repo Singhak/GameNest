@@ -8,6 +8,7 @@ export class CreateUserDto {
     @IsString() @IsOptional() provider?: string;
     @IsString() @IsOptional() @MaxLength(100) name?: string;
     @IsString() @IsOptional() phoneNumber?: string;
+    @IsString() @IsOptional() whatsappNumber?: string;
     @IsString() @IsOptional() password?: string;
     @IsArray() @IsOptional()
     ownedClubs?: string[];
