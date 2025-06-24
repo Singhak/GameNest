@@ -6,5 +6,8 @@ export enum BookingStatus {
     Completed = 'completed', // Booking time has passed and was fulfilled
     NoShow = 'no_show', // Customer did not show up
     Rescheduled = 'rescheduled',
+    CancelledRescheduled='cancelled_rescheduled',
+    ReschedulePending='reschedule_pending',
+    RescheduleRequested='reschedule_requested',
     Rejected = 'rejected',
 }
