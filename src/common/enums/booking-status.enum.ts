@@ -10,4 +10,6 @@ export enum BookingStatus {
     ReschedulePending='reschedule_pending',
     RescheduleRequested='reschedule_requested',
     Rejected = 'rejected',
+    Expired = 'expired', // Booking was not confirmed in time and is now expired
+    Refunded = 'refunded', // Payment was refunded
 }
