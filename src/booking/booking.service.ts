@@ -200,7 +200,7 @@ export class BookingService {
             endTime: endTime,
             durationHours: durationHours,
             totalPrice: totalPrice,
-            status: initialStatus,  // Default status upon creation
+            status: initialStatus, // Use the parameter here
             paymentStatus: 'pending', // Assume payment is pending at creation
             notes: notes,
             rescheduleOf: createBookingDto.rescheduleOf || null,
@@ -214,6 +214,55 @@ export class BookingService {
         this.eventEmitter.emit('booking.created', new BookingCreatedEvent(createdBooking, service));
 
         return createdBooking;
+    }
+
+    /**
+     * Initiates a reschedule request from a customer.
+     * This creates a new 'reschedule_pending' booking and puts the original on hold.
+     * @param originalBookingId The ID of the booking to be rescheduled.
+     * @param rescheduleDto DTO with the new booking details.
+     * @param currentUser The user making the request.
+     * @returns The newly created 'reschedule_pending' booking.
+     */
+    async requestReschedule(
+        originalBookingId: string,
+        rescheduleDto: CreateBookingDto,
+        currentUser: JwtPayload,
+    ): Promise<Booking> {
+        this.logger.log(`User ${currentUser.id} requesting to reschedule booking ${originalBookingId}`);
+        const originalBooking = await this.bookingModel.findById(originalBookingId);
+
+        if (!originalBooking) {
+            throw new NotFoundException('Original booking not found.');
+        }
+
+        // Authorization: Ensure the current user is the customer of the original booking
+        if (originalBooking.customer.toString() !== currentUser.id) {
+            throw new ForbiddenException('You can only reschedule your own bookings.');
+        }
+
+        // Validation: Check if the original booking is in a state that can be rescheduled
+        if (![BookingStatus.Confirmed, BookingStatus.Pending].includes(originalBooking.status as BookingStatus)) {
+            throw new BadRequestException(`Booking with status '${originalBooking.status}' cannot be rescheduled.`);
+        }
+
+        // 1. Update original booking status to 'reschedule_requested' to put it on hold
+        const previousStatus = originalBooking.status;
+        originalBooking.status = BookingStatus.RescheduleRequested;
+        await originalBooking.save();
+
+        try {
+            // 2. Create the new 'reschedule_pending' booking
+            const newBookingDto: CreateBookingDto = { ...rescheduleDto, rescheduleOf: originalBooking._id as Types.ObjectId };
+            const proposedBooking = await this.createBooking(currentUser.id, newBookingDto, BookingStatus.ReschedulePending);
+            return proposedBooking;
+        } catch (error) {
+            // Rollback: If creating the new booking fails, revert the original booking's status
+            this.logger.error(`Failed to create reschedule booking. Reverting original booking ${originalBookingId}. Error: ${error.message}`);
+            originalBooking.status = previousStatus;
+            await originalBooking.save();
+            throw error; // Re-throw the error from createBooking
+        }
     }
 
     async findDistinctCustomersId(query: any = {}): Promise<Types.ObjectId[]> {
@@ -239,7 +288,7 @@ export class BookingService {
             .populate('club')
             .populate('customer')
             .populate('service')
-            .populate('rescheduleOf') // Populate rescheduleOf if exists
+            .populate('rescheduleOf') // Populate the original booking if it's a reschedule request
             .exec()
 
         if (!booking) {
@@ -271,8 +320,17 @@ export class BookingService {
                     throw new ForbiddenException('You are not allowed to set this booking status.');
                 }
             } else if (isClubOwner || isAdmin) {
+                if (newStatus === BookingStatus.Expired) {
+                    const isExpired = await this.isExpireBooking(bookingId);
+                    if (isExpired)
+                        booking.status = newStatus;
+                    else {
+                        this.logger.warn(`User ${currentUser} attempted to set booking ${bookingId} to expired from status ${booking.status}.`);
+                        throw new ForbiddenException(`You cannot set the status to 'expired' from ${booking.status} for valid booking.`);
+                    }
+                }
                 // Club owner or Admin can manage statuses more broadly
-                if (newStatus === BookingStatus.Confirmed && booking.status === BookingStatus.Pending) {
+                else if (newStatus === BookingStatus.Confirmed && booking.status === BookingStatus.Pending) {
                     booking.status = newStatus;
                 } else if (newStatus === BookingStatus.CancelledByClub &&
                     (booking.status === BookingStatus.Pending || booking.status === BookingStatus.Confirmed)) {
@@ -483,51 +541,68 @@ export class BookingService {
     }
 
     /**
-  * Initiates a reschedule request from a customer.
-  * This creates a new 'reschedule_pending' booking and puts the original on hold.
-  * @param originalBookingId The ID of the booking to be rescheduled.
-  * @param rescheduleDto DTO with the new booking details.
-  * @param currentUser The user making the request.
-  * @returns The newly created 'reschedule_pending' booking.
-  */
-    async requestReschedule(
-        originalBookingId: string,
-        rescheduleDto: CreateBookingDto,
-        currentUser: JwtPayload,
-    ): Promise<Booking> {
-        this.logger.log(`User ${currentUser.id} requesting to reschedule booking ${originalBookingId}`);
-        const originalBooking = await this.bookingModel.findById(originalBookingId);
+     * Sets the status of bookings to 'expired' if their booking date and time have passed.
+     * This is typically run as a scheduled task (cron job).
+     */
+    async expirePastBookings(): Promise<void> {
+        const now = moment.tz(this.APP_TIMEZONE);
+        this.logger.log(`Checking for bookings to expire... Current time: ${now.format()}`);
 
-        if (!originalBooking) {
-            throw new NotFoundException('Original booking not found.');
-        }
+        const result = await this.bookingModel.updateMany(
+            {
+                status: { $in: [BookingStatus.Pending, BookingStatus.Confirmed] },
+                $expr: {
+                    $lte: [
+                        {
+                            $dateFromString: {
+                                dateString: {
+                                    // Convert bookingDate to string before concatenating
+                                    $concat: [{ $dateToString: { format: '%Y-%m-%d', date: '$bookingDate', timezone: this.APP_TIMEZONE } }, ' ', '$endTime']
+                                },
+                                timezone: this.APP_TIMEZONE
+                            }
+                        },
+                        now.toDate()
+                    ]
+                }
+            },
+            { $set: { status: BookingStatus.Expired } }
+        ).exec();
 
-        // Authorization: Ensure the current user is the customer of the original booking
-        if (originalBooking.customer.toString() !== currentUser.id) {
-            throw new ForbiddenException('You can only reschedule your own bookings.');
-        }
-
-        // Validation: Check if the original booking is in a state that can be rescheduled
-        if (![BookingStatus.Confirmed, BookingStatus.Pending].includes(originalBooking.status as BookingStatus)) {
-            throw new BadRequestException(`Booking with status '${originalBooking.status}' cannot be rescheduled.`);
-        }
-
-        // 1. Update original booking status to 'reschedule_requested' to put it on hold
-        const previousStatus = originalBooking.status;
-        originalBooking.status = BookingStatus.RescheduleRequested;
-        await originalBooking.save();
-
-        try {
-            // 2. Create the new 'reschedule_pending' booking
-            const newBookingDto: CreateBookingDto = { ...rescheduleDto, rescheduleOf: originalBooking.id };
-            const proposedBooking = await this.createBooking(currentUser.id, newBookingDto, BookingStatus.ReschedulePending);
-            return proposedBooking;
-        } catch (error) {
-            // Rollback: If creating the new booking fails, revert the original booking's status
-            this.logger.error(`Failed to create reschedule booking. Reverting original booking ${originalBookingId}. Error: ${error.message}`);
-            originalBooking.status = previousStatus;
-            await originalBooking.save();
-            throw error; // Re-throw the error from createBooking
-        }
+        this.logger.log(`Expired ${result.modifiedCount} bookings.`);
     }
+    /**
+     * Sets the status of bookings to 'expired' if their booking date and time have passed.
+     * This is typically run as a scheduled task (cron job).
+     */
+    async isExpireBooking(
+        bookingId: string,
+    ): Promise<boolean> {
+        const now = moment.tz(this.APP_TIMEZONE);
+        this.logger.log(`Checking for bookings to expire... Current time: ${now.format()}`);
+
+        const result = await this.bookingModel.findOne(
+            {
+                _id: new Types.ObjectId(bookingId), // Ensure we only update the specific booking
+                $expr: {
+                    $lte: [
+                        {
+                            $dateFromString: {
+                                dateString: {
+                                    // Convert bookingDate to string before concatenating
+                                    $concat: [{ $dateToString: { format: '%Y-%m-%d', date: '$bookingDate', timezone: this.APP_TIMEZONE } }, ' ', '$endTime']
+                                },
+                                timezone: this.APP_TIMEZONE
+                            }
+                        },
+                        now.toDate()
+                    ]
+                }
+            },
+        ).exec();
+        this.logger.log(`Expired ${result} bookings.`);
+        return !!result
+    }
+
+
 }
