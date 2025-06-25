@@ -54,9 +54,6 @@ export class NotificationController {
         );
     }
 
-
-
-
     @Post('mark-read')
     @HttpCode(HttpStatus.NO_CONTENT) // 204 No Content for successful update without returning data
     async markSelectedNotificationsAsRead(

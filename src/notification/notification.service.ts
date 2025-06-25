@@ -370,6 +370,14 @@ export class NotificationService {
                 notificationType = NotificationType.BookingCancelled; // Or a more specific type
                 extras['href'] = '/dashboard/owner'
                 break;
+            case BookingStatus.Expired:
+                recipientId = customer.id; // Notify customer
+                title = 'Booking Expired';
+                message = `Your booking for ${service.name} on ${moment(booking.bookingDate).format('MMM D, YYYY')} at ${booking.startTime} has expired.`;
+                notificationType = NotificationType.BookingExpired;
+                extras['href'] = '/dashboard/user'
+                break;
+
             // Add more cases for other statuses like 'completed', 'no_show' if needed
             // For example, if BookingStatus.Pending should also create a notification:
             // case BookingStatus.Pending:

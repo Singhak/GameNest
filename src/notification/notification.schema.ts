@@ -1,6 +1,7 @@
 // src/notification/schemas/notification.schema.ts
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
+import { NotificationType } from 'src/common/enums/notification-enum';
 
 export type NotificationDocument = Notification & Document;
 
@@ -15,7 +16,7 @@ export class Notification {
   @Prop({ type: String, required: true })
   message: string;
 
-  @Prop({ type: String, enum: ['booking_pending', 'booking_confirmed', 'booking_rejected', 'booking_cancelled', 'review_received', 'system_message'], required: true })
+  @Prop({ type: String, enum: NotificationType, required: true })
   type: string;
 
   @Prop({ type: Types.ObjectId, required: false })
