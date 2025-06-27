@@ -479,8 +479,9 @@ export class BookingService {
         }
 
         return this.bookingModel.find(query)
-            // .populate('club', 'name address images') // Populate club with specific fields
-            // .populate('service', 'name description pricePerHour') // Populate service with specific fields
+            .populate('customer', 'email name phoneNumber uid') // Populate customer with specific fields
+            .populate('service', 'name') // Populate service with specific fields
+            .populate('club', 'name') // Populate club with specific fields
             .sort({ bookingDate: -1, startTime: -1 }) // Sort by most recent
             .limit(limit)
             .skip(skip)
