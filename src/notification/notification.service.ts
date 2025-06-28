@@ -452,7 +452,24 @@ export class NotificationService {
      * @throws ForbiddenException if a user tries to mark notifications they don't own.
      */
     async markNotificationsAsRead(notificationIds: string[], userId: string): Promise<any> {
-        const objectIds = notificationIds.map(id => new Types.ObjectId(id));
+        try {
+            if (!notificationIds || notificationIds.length === 0) {
+                throw new BadRequestException('No notification IDs provided to mark as read.');
+            }
+            if (!Types.ObjectId.isValid(userId)) {
+                throw new BadRequestException('Invalid user ID format.');
+            }
+        } catch (error) {
+            this.logger.error(`Error validating input for markNotificationsAsRead: ${error.message}`, error.stack);
+            throw error; // Re-throw to be handled by global exception filter
+        }
+        const objectIds = notificationIds.map(id => {
+            try {
+                return new Types.ObjectId(id)
+            } catch (error) {
+                this.logger.error(`Invalid notification ID format: ${id}`, error.stack);
+            }
+        }).filter(Boolean); // Filter out any invalid IDs
         const result = await this.notificationModel.updateMany(
             { _id: { $in: objectIds }, recipient: new Types.ObjectId(userId), isRead: false }, // Only update unread notifications belonging to the user
             { $set: { isRead: true } },
