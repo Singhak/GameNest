@@ -2,7 +2,7 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Role } from '../common/enums/role.enum';
 import { User, UserDocument } from './schema/user.schema';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { RefreshTokenEntry } from './dtos/refresh-token.dto';
 import { FirebaseService } from 'src/firebase/firebase.service';
 import { CreateUserDto } from './dtos/create-user.dto';
@@ -173,5 +173,58 @@ export class UsersService {
     async findClubOwners(clubId: string): Promise<User[]> {
         this.logger.debug(`Finding club owners for club ${clubId}`);
         return this.userModel.find({ ownedClubs: clubId, roles: Role.Owner }).exec();
+    }
+
+    // --- Favorite Club Management ---
+
+    /**
+     * Adds or removes a club from a user's favorites list.
+     * @param userId The ID of the user.
+     * @param clubId The ID of the club to toggle.
+     * @returns A confirmation message.
+     */
+    async toggleFavoriteClub(userId: string, clubId: string): Promise<{ message: string }> {
+        this.logger.log(`User ${userId} toggling favorite status for club ${clubId}`);
+        const user = await this.findById(userId);
+        if (!user) {
+            throw new NotFoundException('User not found.');
+        }
+
+        const clubObjectId = new Types.ObjectId(clubId);
+        const favoriteClubs = user.favoriteClubs.map(id => id.toString());
+        const isFavorite = favoriteClubs.includes(clubId);
+
+        let update;
+        let message;
+
+        if (isFavorite) {
+            // Remove from favorites
+            update = { $pull: { favoriteClubs: clubObjectId } };
+            message = 'Club removed from favorites.';
+        } else {
+            // Add to favorites
+            update = { $addToSet: { favoriteClubs: clubObjectId } }; // $addToSet prevents duplicates
+            message = 'Club added to favorites.';
+        }
+
+        await this.userModel.updateOne({ _id: user._id }, update);
+        this.logger.log(message);
+        return { message };
+    }
+
+    /**
+     * Retrieves a user's list of favorite clubs.
+     * @param userId The ID of the user.
+     * @returns A list of the user's favorite SportClub documents.
+     */
+    async getFavoriteClubs(userId: string): Promise<any[]> {
+        this.logger.debug(`Fetching favorite clubs for user ${userId}`);
+        const user = await this.userModel.findById(userId).populate('favoriteClubs').select('favoriteClubs').lean().exec();
+
+        if (!user) {
+            throw new NotFoundException('User not found.');
+        }
+
+        return user.favoriteClubs;
     }
 }

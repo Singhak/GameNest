@@ -85,4 +85,25 @@ export class UsersController {
     const updatedUser = await this.usersService.removeFcmToken(userId, updateFcmTokenDto.fcmToken);
     return { message: 'FCM token removed successfully.', fcmTokens: updatedUser?.fcmTokens };
   }
+
+  @Post('favorites/club/:clubId')
+  @Roles(Role.User, Role.Owner, Role.Admin)
+  async toggleFavorite(
+    @Request() req: { user: JwtPayload },
+    @Param('clubId') clubId: string,
+  ) {
+    const userId = req.user.id;
+    this.logger.log(`User ${userId} toggling favorite for club ${clubId}`);
+    return this.usersService.toggleFavoriteClub(userId, clubId);
+  }
+
+  @Get('my-favorites/clubs')
+  @Roles(Role.User, Role.Owner, Role.Admin)
+  async getMyFavorites(
+    @Request() req: { user: JwtPayload },
+  ) {
+    const userId = req.user.id;
+    this.logger.log(`Fetching favorite clubs for user ${userId}`);
+    return this.usersService.getFavoriteClubs(userId);
+  }
 }
