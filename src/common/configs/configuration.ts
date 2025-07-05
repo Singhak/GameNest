@@ -12,5 +12,7 @@ export default () => ({
     firebase: {
         // Resolve the path to the service account key file
         serviceAccountPath: path.resolve(process.cwd(), process.env.FIREBASE_SERVICE_ACCOUNT_PATH || './firebase-service-account.json'),
+        storageBucket: path.resolve(process.cwd(), process.env.FIREBASE_STORAGE_BUCKET || 'oursolutioncafe.firebasestorage.app'),
+
     },
 });
