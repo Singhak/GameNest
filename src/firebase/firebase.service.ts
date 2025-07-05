@@ -1,17 +1,20 @@
 import { Injectable, OnModuleInit, InternalServerErrorException } from '@nestjs/common';
 import * as admin from 'firebase-admin';
+import { Storage } from 'firebase-admin/storage';
 import { ConfigService } from '@nestjs/config'; // Import ConfigService
 import * as fs from 'fs';
 
 @Injectable()
 export class FirebaseService implements OnModuleInit {
   private firebaseAdmin: typeof admin;
+  private storage: Storage;
 
   constructor(private configService: ConfigService) {}
 
   async onModuleInit() {
     // Get the service account path from configuration
     const serviceAccountPath = this.configService.get<string>('firebase.serviceAccountPath');
+    const storageBucket = this.configService.get<string>('firebase.storageBucket');
 
     if (!serviceAccountPath) {
       throw new InternalServerErrorException('Firebase service account path is not configured.');
@@ -24,16 +27,22 @@ export class FirebaseService implements OnModuleInit {
       );
     }
 
+    if (!storageBucket) {
+      throw new InternalServerErrorException('Firebase storage bucket URL is not configured in firebase.storageBucket.');
+    }
+
     try {
       // Initialize Firebase Admin SDK only if it hasn't been initialized yet
       if (!admin.apps.length) {
         const serviceAccount = require(serviceAccountPath);
         admin.initializeApp({
           credential: admin.credential.cert(serviceAccount),
+          storageBucket,
         });
         console.log('Firebase Admin SDK initialized successfully.');
       }
       this.firebaseAdmin = admin;
+      this.storage = admin.storage();
     } catch (error) {
       console.error('Error initializing Firebase Admin SDK:', error.message);
       throw new InternalServerErrorException('Failed to initialize Firebase Admin SDK.');
@@ -76,6 +85,76 @@ export class FirebaseService implements OnModuleInit {
     } catch (error) {
       console.error(`Error setting custom claims for user ${uid}:`, error.message);
       throw new InternalServerErrorException('Failed to set custom user claims.');
+    }
+  }
+
+  /**
+   * Uploads a file to Firebase Storage.
+   * @param buffer The file buffer to upload.
+   * @param destination The path in the bucket where the file will be stored.
+   * @param mimetype The MIME type of the file.
+   * @returns The public URL of the uploaded file.
+   */
+  async uploadFile(buffer: Buffer, destination: string, mimetype: string): Promise<string> {
+    const bucket = this.storage.bucket();
+    const file = bucket.file(destination);
+
+    try {
+      await file.save(buffer, {
+        public: true,
+        contentType: mimetype,
+        metadata: {
+          cacheControl: 'public, max-age=31536000', // Cache for 1 year
+        },
+      });
+
+      return file.publicUrl();
+    } catch (error) {
+      console.error(`Error uploading file to ${destination}:`, error.message);
+      throw new InternalServerErrorException('Failed to upload file.');
+    }
+  }
+
+  /**
+   * Deletes a file from Firebase Storage.
+   * @param filePath The path of the file to delete in the bucket.
+   */
+  async deleteFile(filePath: string): Promise<void> {
+    const bucket = this.storage.bucket();
+    const file = bucket.file(filePath);
+
+    try {
+      const [exists] = await file.exists();
+      if (exists) {
+        await file.delete();
+        console.log(`Successfully deleted ${filePath} from storage.`);
+      } else {
+        console.log(`File ${filePath} does not exist in storage, skipping deletion.`);
+      }
+    } catch (error) {
+      console.error(`Error deleting file ${filePath}:`, error.message, error.stack);
+      // Do not re-throw, as this is often a non-critical cleanup operation.
+    }
+  }
+
+  /**
+   * Extracts the file path from a Firebase Storage public URL.
+   * @param url The public URL of the file.
+   * @returns The file path within the bucket, or null if the URL is invalid.
+   */
+  extractFilePathFromUrl(url: string): string | null {
+    try {
+      const bucketName = this.storage.bucket().name;
+      const urlObject = new URL(url);
+      const expectedPrefix = `/${bucketName}/`;
+
+      if (urlObject.hostname === 'storage.googleapis.com' && urlObject.pathname.startsWith(expectedPrefix)) {
+        return decodeURIComponent(urlObject.pathname.substring(expectedPrefix.length));
+      }
+      return null;
+    } catch (error) {
+      console.error(`Could not parse file path from URL: ${url}`, error.message);
+      return null;
     }
   }
 }
