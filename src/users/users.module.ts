@@ -3,7 +3,6 @@ import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
 import { User, UserSchema } from './schema/user.schema';
 import { MongooseModule } from '@nestjs/mongoose';
-import { FirebaseModule } from 'src/firebase/firebase.module';
 
 @Module({
   imports: [MongooseModule.forFeature([

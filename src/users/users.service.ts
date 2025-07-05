@@ -3,11 +3,10 @@ import { Role } from '../common/enums/role.enum';
 import { User, UserDocument } from './schema/user.schema';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { RefreshTokenEntry } from './dtos/refresh-token.dto';
 import { FirebaseService } from 'src/firebase/firebase.service';
 import { CreateUserDto } from './dtos/create-user.dto';
 import { UpdateUserDto } from './dtos/update-user.dto';
-import * as bcrypt from 'bcryptjs';
+import * as path from 'path';
 
 @Injectable()
 export class UsersService {
@@ -226,5 +225,49 @@ export class UsersService {
         }
 
         return user.favoriteClubs;
+    }
+
+    /**
+     * Uploads a user's avatar to Firebase Storage and updates the user's profile.
+     * @param userId The ID of the user.
+     * @param file The uploaded file object from Multer.
+     * @returns The updated user object with the new avatar URL.
+     */
+    async uploadAvatar(userId: string, file: Express.Multer.File): Promise<User> {
+        const user = await this.findById(userId);
+        if (!user) {
+            this.logger.error(`User with ID ${userId} not found for avatar upload.`);
+            throw new NotFoundException('User not found.');
+        }
+
+        // Optional but recommended: Delete the old avatar to save storage space.
+        if (user.avatar) {
+            try {
+                // This assumes your FirebaseService has methods to parse the URL and delete the old file.
+                // A simple implementation might extract the file path from the public URL.
+                const oldFilePath = this.firebaseService.extractFilePathFromUrl(user.avatar);
+                if (oldFilePath) {
+                    this.logger.log(`Deleting old avatar for user ${userId}: ${oldFilePath}`);
+                    await this.firebaseService.deleteFile(oldFilePath);
+                }
+            } catch (error) {
+                this.logger.error(`Failed to delete old avatar for user ${userId}. URL: ${user.avatar}`, error.stack);
+                // This is a non-fatal error, so we'll log it and continue with the new upload.
+            }
+        }
+
+        const fileExtension = path.extname(file.originalname);
+        const filename = `avatars/${userId}/${Date.now()}${fileExtension}`;
+        this.logger.log(`Uploading new avatar for user ${userId} to ${filename}`);
+
+        const publicUrl = await this.firebaseService.uploadFile(file.buffer, filename, file.mimetype);
+
+        const updatedUser = await this.updateUserById(userId, { avatar: publicUrl });
+        if (!updatedUser) {
+            // This case is unlikely if the user was found initially, but it's good practice to handle.
+            throw new NotFoundException('User not found after update attempt.');
+        }
+
+        return updatedUser;
     }
 }

@@ -59,6 +59,9 @@ export class User extends Document {
 
     @Prop()
     currentLocation: string;
+
+    @Prop({ type: String, default: null })
+    avatar: string; // URL to the user's avatar image
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

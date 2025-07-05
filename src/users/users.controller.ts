@@ -1,12 +1,15 @@
-import { Controller, Get, UseGuards, Request, Param, Body, Patch, Post, Logger } from '@nestjs/common';
+import { Controller, Get, UseGuards, Request, Param, Body, Post, Logger, UseInterceptors, UploadedFile, ParseFilePipe, MaxFileSizeValidator, FileTypeValidator } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
-import { JwtPayload } from '../auth/strategies/jwt.strategy'; // Use the local JwtPayload type
+import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { UpdateFcmTokenDto } from './dtos/update-fcm-token.dto';
 import { UpdateUserDto } from './dtos/update-user.dto';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { multerOptions } from '../config/multer.config';
+import 'multer'; // This import is for type-resolution purposes.
 
 @Controller('users')
 @UseGuards(JwtAuthGuard, RolesGuard) // Apply JWT authentication and RolesGuard globally for this controller
@@ -59,6 +62,26 @@ export class UsersController {
     const updatedUser = await this.usersService.updateUserById(userId, updateUserDto);
     this.logger.log(`User ${userId} profile updated successfully.`);
     return updatedUser;
+  }
+
+  @Post('my-info/avatar')
+  @Roles(Role.User, Role.Editor, Role.Admin, Role.Owner)
+  @UseInterceptors(FileInterceptor('avatar', multerOptions))
+  async uploadAvatar(
+    @Request() req: { user: JwtPayload },
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }), // 5MB
+          new FileTypeValidator({ fileType: /image\/(jpeg|png|gif|webp)/ }),
+        ],
+        fileIsRequired: true,
+      }),
+    ) file: Express.Multer.File,
+  ) {
+    const userId = req.user.id;
+    this.logger.log(`User ${userId} is uploading a new avatar.`);
+    return this.usersService.uploadAvatar(userId, file);
   }
 
   @Post('fcm-token')

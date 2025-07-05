@@ -29,4 +29,8 @@ export class CreateUserDto {
     @IsString()
     @IsOptional()
     currentLocation?: string
+
+    @IsOptional()
+    @IsString()
+    avatar?: string; // URL to the user's avatar image
 }
