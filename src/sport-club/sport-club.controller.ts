@@ -1,12 +1,14 @@
-import { Controller, Get, Param, Query, Post, Body, Delete, Request, BadRequestException, HttpCode, HttpStatus, Logger, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, Post, Body, Delete, Request, BadRequestException, HttpCode, HttpStatus, Logger, UseGuards, UseInterceptors, UploadedFiles, ParseFilePipe, MaxFileSizeValidator, FileTypeValidator } from '@nestjs/common';
 import { SportClubService } from './sport-club.service';
 import { CreateClubDto } from './dtos/create-club.dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { Role } from 'src/common/enums/role.enum';
-import { JwtPayload } // Assuming JwtPayload is defined in your auth module, e.g., from 'src/auth/strategies/jwt.strategy'
-    from 'src/auth/strategies/jwt.strategy'; // Or wherever your JwtPayload is defined
+import { JwtPayload } from 'src/auth/strategies/jwt.strategy';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { multerOptions } from 'src/config/multer.config';
+import 'multer';
 
 @Controller('clubs')
 export class SportClubController {
@@ -66,6 +68,28 @@ export class SportClubController {
             throw new BadRequestException('Owner ID is required');
         }
         return this.sportClubService.createClub(ownerId, createClubDto);
+    }
+
+    @Post(':clubId/images')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(Role.Owner) // Only owners can upload images to their clubs
+    @UseInterceptors(FilesInterceptor('images', 10, multerOptions)) // 'images' is the field name, 10 is the max number of files
+    async uploadClubImages(
+        @Request() req: { user: JwtPayload },
+        @Param('clubId') clubId: string,
+        @UploadedFiles(
+            new ParseFilePipe({
+                validators: [
+                    new MaxFileSizeValidator({ maxSize: 10 * 1024 * 1024 }), // 10MB per image
+                    new FileTypeValidator({ fileType: /image\/(jpeg|png|gif|webp)/ }),
+                ],
+                fileIsRequired: true,
+            }),
+        ) files: Array<Express.Multer.File>,
+    ) {
+        const ownerId = req.user.id;
+        this.logger.log(`Owner ${ownerId} uploading ${files.length} images for club ${clubId}.`);
+        return this.sportClubService.uploadClubImages(clubId, ownerId, files);
     }
 
     @Delete(':clubId')
