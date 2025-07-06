@@ -17,20 +17,26 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 
 @Module({
   imports: [
-    MongooseModule.forRootAsync({
-      imports: [ConfigModule], // Ensure ConfigModule is available
-      useFactory: async (configService: ConfigService) => ({
-        uri: configService.get<string>('mongodbUri'),
-        // You can add other mongoose options here if needed
-        // e.g., useNewUrlParser: true,
-      }),
-      inject: [ConfigService], // Inject ConfigService to use it in the factory
-    }),
-    // Load environment variables globally
     ConfigModule.forRoot({
       isGlobal: true, // Makes the ConfigModule available throughout the application
       load: [configuration], // Load our custom configuration
       envFilePath: '.env', // Specify the path to your .env file
+    }),
+    MongooseModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => {
+        const uri = configService.get<string>('mongodbUri'); // or 'MONGODB_URI' if you kept the raw key
+        // const serverApi: any = {
+        //   'version': "1",
+        //   'strict': true,
+        //   'deprecationErrors': true,
+        // }
+        // console.log(`[AppModule] MongoDB URI: ${uri || 'NOT FOUND'}`);
+        return {
+          uri,
+        };
+      },
+      inject: [ConfigService],
     }),
     ScheduleModule.forRoot(),
     EventEmitterModule.forRoot(),
