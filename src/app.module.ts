@@ -31,7 +31,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
         //   'strict': true,
         //   'deprecationErrors': true,
         // }
-        // console.log(`[AppModule] MongoDB URI: ${uri || 'NOT FOUND'}`);
+        console.log(`[AppModule] MongoDB URI: ${uri || 'NOT FOUND'}`);
         return {
           uri,
         };
