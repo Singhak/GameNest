@@ -3,7 +3,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { FirebaseModule } from './firebase/firebase.module';
 import { MongooseModule } from '@nestjs/mongoose';
 import { SportClubModule } from './sport-club/sport-club.module';
@@ -17,8 +17,15 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 
 @Module({
   imports: [
-    MongooseModule.forRoot('mongodb://localhost:27017/gamenext'),
-    MongooseModule.forFeature(),
+    MongooseModule.forRootAsync({
+      imports: [ConfigModule], // Ensure ConfigModule is available
+      useFactory: async (configService: ConfigService) => ({
+        uri: configService.get<string>('mongodbUri'),
+        // You can add other mongoose options here if needed
+        // e.g., useNewUrlParser: true,
+      }),
+      inject: [ConfigService], // Inject ConfigService to use it in the factory
+    }),
     // Load environment variables globally
     ConfigModule.forRoot({
       isGlobal: true, // Makes the ConfigModule available throughout the application
