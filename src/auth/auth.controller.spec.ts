@@ -7,7 +7,7 @@ import { Role } from '../common/enums/role.enum';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { NotFoundException } from '@nestjs/common';
-import { User } from 'src/users/schema/user.schema';
+import { User } from '../users/schema/user.schema';
 
 // Mock AuthService
 const mockAuthService = {
