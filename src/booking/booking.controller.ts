@@ -10,7 +10,7 @@ import { CreateBookingDto } from './dtos/create-booking.dto';
 import { UpdateBookingDto } from './dtos/update-booking.dto';
 import { Types } from 'mongoose'; // Keep Types import
 import { Booking } from './booking.schema';
-import { BookingStatus } from 'src/common/enums/booking-status.enum';
+import { BookingStatus } from '../common/enums/booking-status.enum';
 
 @Controller('bookings')
 @Roles(Role.User) // Only regular users (customers) can create bookings

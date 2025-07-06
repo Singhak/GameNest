@@ -5,10 +5,10 @@ import * as bcrypt from 'bcryptjs';
 import { UsersService } from '../users/users.service';
 import { FirebaseService } from '../firebase/firebase.service';
 import { LoginDto } from './dtos/login.dto';
-import { Role } from 'src/common/enums/role.enum';
-import { User } from 'src/users/schema/user.schema';
-import { RefreshTokenEntry } from 'src/users/dtos/refresh-token.dto';
-import { UpdateUserDto } from 'src/users/dtos/update-user.dto';
+import { Role } from '../common/enums/role.enum';
+import { User } from '../users/schema/user.schema';
+import { RefreshTokenEntry } from '../users/dtos/refresh-token.dto';
+import { UpdateUserDto } from '../users/dtos/update-user.dto';
 
 @Injectable()
 export class AuthService {

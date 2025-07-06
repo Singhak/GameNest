@@ -1,9 +1,9 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, HydratedDocument, Types } from 'mongoose';
-import { BookingStatus } from 'src/common/enums/booking-status.enum';
-import { SportClub } from 'src/sport-club/sport-club.schema';
-import { SportService } from 'src/sport-service/sport-service.schema';
-import { User } from 'src/users/schema/user.schema';
+import { BookingStatus } from '../common/enums/booking-status.enum';
+import { SportClub } from '../sport-club/sport-club.schema';
+import { SportService } from '../sport-service/sport-service.schema';
+import { User } from '../users/schema/user.schema';
 
 export type BookingDocument = HydratedDocument<Booking>;
 

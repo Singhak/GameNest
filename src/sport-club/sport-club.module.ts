@@ -3,8 +3,8 @@ import { SportClubService } from './sport-club.service';
 import { SportClubController } from './sport-club.controller';
 import { MongooseModule } from '@nestjs/mongoose';
 import { SportClub, SportClubSchema } from './sport-club.schema';
-import { UsersModule } from 'src/users/users.module';
-import { NotificationModule } from 'src/notification/notification.module';
+import { UsersModule } from '../users/users.module';
+import { NotificationModule } from '../notification/notification.module';
 
 @Module({
   imports: [

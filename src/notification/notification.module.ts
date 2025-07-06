@@ -3,8 +3,8 @@ import { NotificationController } from './notification.controller';
 import { NotificationService } from './notification.service';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Notification, NotificationSchema } from './notification.schema';
-import { UsersModule } from 'src/users/users.module';
-import { BookingModule } from 'src/booking/booking.module';
+import { UsersModule } from '../users/users.module';
+import { BookingModule } from '../booking/booking.module';
 
 @Module({
     imports: [

@@ -1,7 +1,6 @@
 // src/notification/dto/create-notification.dto.ts
 import { IsString, IsNotEmpty, IsEnum, IsOptional, IsMongoId } from 'class-validator';
-import { Types } from 'mongoose';
-import { NotificationType } from 'src/common/enums/notification-enum';
+import { NotificationType } from '../../common/enums/notification-enum';
 
 // Define an enum for clarity and strong typing of notification types
 

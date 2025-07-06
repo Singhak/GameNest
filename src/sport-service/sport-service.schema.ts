@@ -1,6 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
-import { SportClub } from 'src/sport-club/sport-club.schema';
+import { SportClub } from '../sport-club/sport-club.schema';
 
 export type SportServiceDocument = HydratedDocument<SportService>;
 

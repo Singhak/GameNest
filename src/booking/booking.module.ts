@@ -5,8 +5,8 @@ import { BookingService } from './booking.service';
 import { BookingController } from './booking.controller';
 import { UsersModule } from '../users/users.module'; // Import UsersModule
 import { Booking, BookingSchema } from './booking.schema';
-import { SportClubModule } from 'src/sport-club/sport-club.module';
-import { SportServiceModule } from 'src/sport-service/sport-service.module';
+import { SportClubModule } from '../sport-club/sport-club.module';
+import { SportServiceModule } from '../sport-service/sport-service.module';
 import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({

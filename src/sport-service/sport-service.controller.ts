@@ -3,13 +3,13 @@ import { SportServiceService } from './sport-service.service';
 import { CreateSportServiceDto } from './dtos/create-sport-dto';
 import { UpdateSportServiceDto } from './dtos/update-sport-dto';
 import { Types } from 'mongoose';
-import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
-import { RolesGuard } from 'src/common/guards/roles.guard';
-import { Roles } from 'src/common/decorators/roles.decorator';
-import { Role } from 'src/common/enums/role.enum';
-import { JwtPayload } from 'src/auth/strategies/jwt.strategy';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
+import { Role } from '../common/enums/role.enum';
+import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { multerOptions } from 'src/config/multer.config';
+import { multerOptions } from '../config/multer.config';
 import 'multer';
 
 @Controller('services')

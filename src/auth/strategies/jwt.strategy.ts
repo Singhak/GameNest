@@ -3,8 +3,8 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config'; // Import ConfigService
 import { UsersService } from '../../users/users.service'; // To fetch full user data if needed
-import { User } from 'src/users/schema/user.schema';
-import { Role } from 'src/common/enums/role.enum';
+import { User } from '../../users/schema/user.schema';
+import { Role } from '../../common/enums/role.enum';
 
 // Define the shape of our JWT payload
 export interface JwtPayload {

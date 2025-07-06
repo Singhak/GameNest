@@ -6,14 +6,14 @@ import { Model, Types } from 'mongoose';
 import { Booking, BookingDocument } from './booking.schema';
 import * as moment from 'moment-timezone';
 import { CreateBookingDto } from './dtos/create-booking.dto'; // Corrected DTO import
-import { SportServiceService } from 'src/sport-service/sport-service.service';
+import { SportServiceService } from '../sport-service/sport-service.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { BookingCreatedEvent, BookingStatusUpdatedEvent } from './booking.events'; // Import event classes
-import { Role } from 'src/common/enums/role.enum';
+import { Role } from '../common/enums/role.enum';
 import { UpdateBookingDto } from './dtos/update-booking.dto';
-import { BookingStatus } from 'src/common/enums/booking-status.enum';
-import { JwtPayload } from 'src/auth/strategies/jwt.strategy';
-import { SportClubService } from 'src/sport-club/sport-club.service';
+import { BookingStatus } from '../common/enums/booking-status.enum';
+import { JwtPayload } from '../auth/strategies/jwt.strategy';
+import { SportClubService } from '../sport-club/sport-club.service';
 @Injectable()
 export class BookingService {
     private readonly APP_TIMEZONE = 'Asia/Kolkata'; // Or load from config

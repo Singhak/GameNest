@@ -3,11 +3,11 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { SportClub } from './sport-club.schema';
 import { CreateClubDto } from './dtos/create-club.dto';
-import { UsersService } from 'src/users/users.service';
-import { Role } from 'src/common/enums/role.enum';
+import { UsersService } from '../users/users.service';
+import { Role } from '../common/enums/role.enum';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { SportClubUpdatedEvent } from './sport-club.events';
-import { FirebaseService } from 'src/firebase/firebase.service';
+import { FirebaseService } from '../firebase/firebase.service';
 import * as path from 'path';
 
 

@@ -6,15 +6,15 @@ import { Model, Types } from 'mongoose';
 import { UsersService } from '../users/users.service'; // To fetch user's FCM tokens
 import * as admin from 'firebase-admin'; // Firebase Admin SDK
 import { Notification, NotificationDocument } from './notification.schema';
-import { NotificationType } from 'src/common/enums/notification-enum';
-import { FirebaseService } from 'src/firebase/firebase.service';
+import { NotificationType } from '../common/enums/notification-enum';
+import { FirebaseService } from '../firebase/firebase.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PromotionTargetAudience, SendPromotionalNotificationDto } from './dtos/send-promotional-notification.dto';
-import { BookingService } from 'src/booking/booking.service';
-import { BookingCreatedEvent, BookingStatusUpdatedEvent } from 'src/booking/booking.events'; // Import event classes
-import { BookingStatus } from 'src/common/enums/booking-status.enum';
+import { BookingService } from '../booking/booking.service';
+import { BookingCreatedEvent, BookingStatusUpdatedEvent } from '../booking/booking.events'; // Import event classes
+import { BookingStatus } from '../common/enums/booking-status.enum';
 import * as moment from 'moment-timezone';
-import { SportClubUpdatedEvent } from 'src/sport-club/sport-club.events';
+import { SportClubUpdatedEvent } from '../sport-club/sport-club.events';
 
 @Injectable()
 export class NotificationService {

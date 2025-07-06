@@ -1,7 +1,7 @@
 // src/notification/schemas/notification.schema.ts
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
-import { NotificationType } from 'src/common/enums/notification-enum';
+import { NotificationType } from '../common/enums/notification-enum';
 
 export type NotificationDocument = Notification & Document;
 

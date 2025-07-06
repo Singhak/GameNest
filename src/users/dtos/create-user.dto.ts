@@ -1,5 +1,5 @@
 import { IsArray, IsDateString, IsNotEmpty, IsObject, IsOptional, IsString, MaxLength } from "class-validator";
-import { Role } from "src/common/enums/role.enum";
+import { Role } from "../../common/enums/role.enum";
 
 export class CreateUserDto {
     @IsString() @IsNotEmpty() uid: string;

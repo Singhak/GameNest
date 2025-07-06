@@ -1,7 +1,7 @@
 import { Types } from "mongoose";
 import { Booking } from "./booking.schema";
-import { SportService } from "src/sport-service/sport-service.schema";
-import { BookingStatus } from "src/common/enums/booking-status.enum";
+import { SportService } from "../sport-service/sport-service.schema";
+import { BookingStatus } from "../common/enums/booking-status.enum";
 
 /**
  * Event emitted when a new booking is successfully created.

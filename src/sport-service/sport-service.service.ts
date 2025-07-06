@@ -4,9 +4,9 @@ import { Model } from 'mongoose';
 import { SportService, SportServiceDocument } from './sport-service.schema';
 import { CreateSportServiceDto } from './dtos/create-sport-dto';
 import { UpdateSportServiceDto } from './dtos/update-sport-dto';
-import { FirebaseService } from 'src/firebase/firebase.service';
+import { FirebaseService } from '../firebase/firebase.service';
 import * as path from 'path';
-import { SportClub } from 'src/sport-club/sport-club.schema';
+import { SportClub } from '../sport-club/sport-club.schema';
 
 @Injectable()
 export class SportServiceService {

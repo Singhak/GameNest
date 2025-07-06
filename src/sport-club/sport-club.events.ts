@@ -1,4 +1,4 @@
-import { SportService } from "src/sport-service/sport-service.schema";
+import { SportService } from "../sport-service/sport-service.schema";
 import { SportClub } from "./sport-club.schema";
 
 /**
