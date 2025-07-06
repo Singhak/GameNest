@@ -3,7 +3,7 @@ import * as path from 'path';
 // Define a function that returns the configuration object
 export default () => ({
     port: parseInt(process.env.PORT || '3000', 10),
-    mongodbUri: process.env.MONGODB_URI || 'mongodb://localhost:27017/your-database',
+    mongodbUri: process.env.MONGO_URI || '',
     jwt: {
         secret: process.env.JWT_SECRET,
         expiresIn: process.env.JWT_EXPIRATION_TIME || '1h',
