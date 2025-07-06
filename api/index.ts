@@ -1,11 +1,11 @@
+// api/index.ts
+import express from 'express';
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from '../src/app.module';
 import { ExpressAdapter } from '@nestjs/platform-express';
-import * as express from 'express';
+import { AppModule } from '../src/app.module';
 import { VercelRequest, VercelResponse } from '@vercel/node';
 
 const server = express();
-
 let appInitialized = false;
 
 async function bootstrap() {
