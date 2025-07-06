@@ -5,7 +5,6 @@ import { SportService, SportServiceDocument } from './sport-service.schema';
 import { CreateSportServiceDto } from './dtos/create-sport-dto';
 import { UpdateSportServiceDto } from './dtos/update-sport-dto';
 import { FirebaseService } from 'src/firebase/firebase.service';
-import { SportClubService } from 'src/sport-club/sport-club.service';
 import * as path from 'path';
 import { SportClub } from 'src/sport-club/sport-club.schema';
 
@@ -16,7 +15,6 @@ export class SportServiceService {
     constructor(
         @InjectModel(SportService.name) private sportServiceModel: Model<SportServiceDocument>,
         private readonly firebaseService: FirebaseService,
-        private readonly sportClubService: SportClubService, // Injected for potential future use in complex club logic
     ) { }
 
     async getSportServices(): Promise<SportService[]> {

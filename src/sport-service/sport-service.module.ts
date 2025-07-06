@@ -10,7 +10,7 @@ import { SportClubModule } from 'src/sport-club/sport-club.module';
     MongooseModule.forFeature([
       { name: SportService.name, schema: SportServiceSchema },
     ]),
-    forwardRef(() => SportClubModule), // Forward reference to SportClubModule
+    // forwardRef(() => SportClubModule), // Forward reference to SportClubModule
   ],
   providers: [SportServiceService],
   controllers: [SportServiceController],
