@@ -10,6 +10,12 @@ let appInitialized = false;
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, new ExpressAdapter(server));
+  app.enableCors({
+    origin: true, // Or specify your frontend's origin, e.g., 'http://localhost:3000'
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    credentials: true,
+  });
+  app.setGlobalPrefix('api');
   await app.init();
   appInitialized = true;
 }
