@@ -9,23 +9,27 @@ export class FirebaseService implements OnModuleInit {
   private firebaseAdmin: typeof admin;
   private storage: Storage;
 
-  constructor(private configService: ConfigService) {}
+  constructor(private configService: ConfigService) { }
 
   async onModuleInit() {
     // Get the service account path from configuration
-    const serviceAccountPath = this.configService.get<string>('firebase.serviceAccountPath');
+    // const serviceAccountPath = this.configService.get<string>('firebase.serviceAccountPath');
+    const serviceAccount = this.configService.get<string>('firebase.serviceAccount');
     const storageBucket = this.configService.get<string>('firebase.storageBucket');
 
-    if (!serviceAccountPath) {
+    // if (!serviceAccountPath) {
+    //   throw new InternalServerErrorException('Firebase service account path is not configured.');
+    // }
+    if (!serviceAccount) {
       throw new InternalServerErrorException('Firebase service account path is not configured.');
     }
 
-    // Check if the service account file exists
-    if (!fs.existsSync(serviceAccountPath)) {
-      throw new InternalServerErrorException(
-        `Firebase service account file not found at: ${serviceAccountPath}. Please ensure it exists and is correctly placed.`
-      );
-    }
+    // Check if the service account file exists now using evn variable
+    // if (!fs.existsSync(serviceAccountPath)) {
+    //   throw new InternalServerErrorException(
+    //     `Firebase service account file not found at: ${serviceAccountPath}. Please ensure it exists and is correctly placed.`
+    //   );
+    // }
 
     if (!storageBucket) {
       throw new InternalServerErrorException('Firebase storage bucket URL is not configured in firebase.storageBucket.');
@@ -34,11 +38,12 @@ export class FirebaseService implements OnModuleInit {
     try {
       // Initialize Firebase Admin SDK only if it hasn't been initialized yet
       if (!admin.apps.length) {
-        const serviceAccount = require(serviceAccountPath);
+        // const serviceAccount = require(serviceAccountPath);
         admin.initializeApp({
           credential: admin.credential.cert(serviceAccount),
           storageBucket,
         });
+        
         console.log('Firebase Admin SDK initialized successfully.');
       }
       this.firebaseAdmin = admin;
