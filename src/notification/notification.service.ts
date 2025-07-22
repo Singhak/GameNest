@@ -13,7 +13,7 @@ import { PromotionTargetAudience, SendPromotionalNotificationDto } from './dtos/
 import { BookingService } from '../booking/booking.service';
 import { BookingCreatedEvent, BookingStatusUpdatedEvent } from '../booking/booking.events'; // Import event classes
 import { BookingStatus } from '../common/enums/booking-status.enum';
-import * as moment from 'moment-timezone';
+import moment from 'moment-timezone';
 import { SportClubUpdatedEvent } from '../sport-club/sport-club.events';
 
 @Injectable()
